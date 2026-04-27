@@ -120,3 +120,17 @@ export function getTaxDeadlines() {
     isOverdue: now > d.deadline,
   }));
 }
+
+/**
+ * Deteksi tipe pajak otomatis dari deskripsi
+ */
+export function detectTaxType(description = '') {
+  const desc = description.toLowerCase();
+  if (desc.includes('ppn masukan')) return 'PPN_IN';
+  if (desc.includes('ppn keluaran') || desc.includes('ppn')) return 'PPN_OUT';
+  if (desc.includes('pph 21') || desc.includes('gaji')) return 'PPH_21';
+  if (desc.includes('pph 23') || desc.includes('jasa')) return 'PPH_23';
+  if (desc.includes('pph 4(2)') || desc.includes('sewa')) return 'PPH_4_2';
+  if (desc.includes('umkm')) return 'FINAL_UMKM';
+  return null;
+}
