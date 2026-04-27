@@ -1,23 +1,13 @@
 import React, { useState } from 'react';
 import { 
   Dialog, 
-  DialogTitle, 
   DialogContent, 
-  DialogActions, 
-  Button, 
-  Typography, 
-  Box,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  CircularProgress,
-  Alert
-} from '@mui/material';
-import { Upload as UploadIcon, CheckCircle as CheckIcon, Error as ErrorIcon } from '@mui/icons-material';
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { parseCSV } from '@/lib/utils';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 
@@ -77,71 +67,86 @@ export default function ImportCSVModal({ open, onClose, businessId, onImportSucc
     };
 
     return (
-        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-            <DialogTitle>Import Transaksi via CSV</DialogTitle>
-            <DialogContent dividers>
-                <Box sx={{ textAlign: 'center', py: 3, border: '2px dashed #ccc', mb: 3 }}>
-                    <input
-                        type="file"
-                        accept=".csv"
-                        id="csv-upload"
-                        style={{ display: 'none' }}
-                        onChange={handleFileChange}
-                    />
-                    <label htmlFor="csv-upload">
-                        <Button variant="contained" component="span" startIcon={<UploadIcon />}>
-                            Pilih File CSV
-                        </Button>
-                    </label>
-                    {file && (
-                        <Typography sx={{ mt: 2 }} color="primary">
-                            File terpilih: {file.name}
-                        </Typography>
+        <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+            <DialogContent className="max-w-2xl bg-card border-border">
+                <DialogHeader>
+                    <DialogTitle>Import Transaksi via CSV</DialogTitle>
+                </DialogHeader>
+                
+                <div className="space-y-4 py-4">
+                    <div className="text-center py-8 border-2 border-dashed border-border rounded-xl">
+                        <input
+                            type="file"
+                            accept=".csv"
+                            id="csv-upload"
+                            className="hidden"
+                            onChange={handleFileChange}
+                        />
+                        <label htmlFor="csv-upload">
+                            <Button variant="outline" asChild className="cursor-pointer border-border">
+                                <span>
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    Pilih File CSV
+                                </span>
+                            </Button>
+                        </label>
+                        {file && (
+                            <p className="mt-3 text-sm text-primary font-medium">
+                                File terpilih: {file.name}
+                            </p>
+                        )}
+                    </div>
+
+                    {error && (
+                        <div className="flex items-center gap-2 p-3 text-sm text-destructive bg-destructive/10 rounded-lg border border-destructive/20">
+                            <AlertCircle className="w-4 h-4" />
+                            {error}
+                        </div>
                     )}
-                </Box>
 
-                {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                    {preview.length > 0 && (
+                        <div className="space-y-2">
+                            <h4 className="text-sm font-semibold">Pratinjau Data (5 Baris Pertama):</h4>
+                            <div className="border border-border rounded-xl overflow-hidden">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-secondary/50 text-xs uppercase text-muted-foreground">
+                                        <tr>
+                                            <th className="px-4 py-2 font-medium">Tanggal</th>
+                                            <th className="px-4 py-2 font-medium">Deskripsi</th>
+                                            <th className="px-4 py-2 font-medium text-right">Jumlah</th>
+                                            <th className="px-4 py-2 font-medium">Tipe</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                        {preview.map((row, idx) => (
+                                            <tr key={idx} className="hover:bg-secondary/30 transition-colors">
+                                                <td className="px-4 py-2">{row.date}</td>
+                                                <td className="px-4 py-2">{row.description}</td>
+                                                <td className="px-4 py-2 text-right">{row.amount}</td>
+                                                <td className="px-4 py-2">{row.type}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
 
-                {preview.length > 0 && (
-                    <>
-                        <Typography variant="subtitle2" gutterBottom>Pratinjau Data (5 Baris Pertama):</Typography>
-                        <TableContainer component={Paper} variant="outlined">
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>Tanggal</TableCell>
-                                        <TableCell>Deskripsi</TableCell>
-                                        <TableCell align="right">Jumlah</TableCell>
-                                        <TableCell>Tipe</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {preview.map((row, idx) => (
-                                        <TableRow key={idx}>
-                                            <TableCell>{row.date}</TableCell>
-                                            <TableCell>{row.description}</TableCell>
-                                            <TableCell align="right">{row.amount}</TableCell>
-                                            <TableCell>{row.type}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    </>
-                )}
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose} disabled={loading} className="border-border">
+                        Batal
+                    </Button>
+                    <Button 
+                        onClick={handleImport} 
+                        disabled={!file || loading}
+                        className="bg-primary text-primary-foreground gap-2"
+                    >
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        {loading ? 'Mengimpor...' : 'Mulai Import'}
+                    </Button>
+                </DialogFooter>
             </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose} disabled={loading}>Batal</Button>
-                <Button 
-                    onClick={handleImport} 
-                    variant="contained" 
-                    color="primary" 
-                    disabled={!file || loading}
-                    startIcon={loading ? <CircularProgress size={20} /> : <CheckIcon />}
-                >
-                    {loading ? 'Mengimpor...' : 'Mulai Import'}
-                </Button>
-            </DialogActions>
         </Dialog>
     );
 }
