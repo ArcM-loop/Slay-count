@@ -74,3 +74,17 @@ export const formatPPNCSV = (transactions, businessName) => {
 
   return [headers.join(','), ...rows].join('\n');
 };
+
+export const exportTaxCSV = (transactions, accounts, taxCode) => {
+  const filtered = transactions.filter(tx => tx.tax_type === taxCode);
+  let csvContent = '';
+  let filename = `export_${taxCode.toLowerCase()}_${new Date().toISOString().split('T')[0]}.csv`;
+
+  if (taxCode.startsWith('PPN')) {
+    csvContent = formatPPNCSV(filtered, 'SlayCount User');
+  } else {
+    csvContent = formatEBupotCSV(filtered, 'SlayCount User');
+  }
+
+  downloadCSV(csvContent, filename);
+};

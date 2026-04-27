@@ -98,3 +98,17 @@ export const categorizeFiscalTransactions = (transactions) => {
 
   return { deductible, nonDeductible, uncategorized };
 };
+
+export const calculateFiscalCorrection = (transactions) => {
+  const { nonDeductible } = categorizeFiscalTransactions(transactions);
+  const totalCorrection = nonDeductible.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+  
+  return {
+    totalCorrection,
+    corrections: nonDeductible.map(tx => ({
+      accountName: tx.account_name || 'Tanpa Nama',
+      amount: Math.abs(tx.amount),
+      reason: tx.fiscal_rule?.description || 'Koreksi Fiskal Positif'
+    }))
+  };
+};
