@@ -15,20 +15,7 @@ import AIAccuracyDashboard from './pages/AIAccuracyDashboard';
 import SettingsPage from './pages/Pengaturan';
 import LoginPage from './pages/Login/LoginPage';
 
-// Developer Dashboard Imports
-import DevAuthGuard from './components/developer/DevAuthGuard';
-import DeveloperLayout from './components/developer/DeveloperLayout';
-import DevOverviewPage from './pages/Developer/Overview/OverviewPage';
-import DevUsersPage from './pages/Developer/Users/UsersPage';
-import DevMonitoringPage from './pages/Developer/Monitoring/MonitoringPage';
-import DevAnalyticsPage from './pages/Developer/Analytics/AnalyticsPage';
-import DevDomainsPage from './pages/Developer/Domains/DomainsPage';
-import DevIntegrationsPage from './pages/Developer/Integrations/IntegrationsPage';
-import DevSecurityPage from './pages/Developer/Security/SecurityPage';
-import DevAIPage from './pages/Developer/AI/AIPage';
-import DevLogsPage from './pages/Developer/Logs/LogsPage';
-import DevAPIUsagePage from './pages/Developer/APIUsage/APIUsagePage';
-import DevSettingsPage from './pages/Developer/Settings/SettingsPage';
+
 
 // PrivateRoute component untuk memproteksi rute internal
 const PrivateRoute = ({ children }) => {
@@ -66,28 +53,6 @@ function App() {
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
-      {/* Developer Dashboard Routes — Protected by Role */}
-      <Route 
-        path="/developer" 
-        element={
-          <DevAuthGuard>
-            <DeveloperLayout />
-          </DevAuthGuard>
-        }
-      >
-        <Route index element={<Navigate to="/developer/overview" replace />} />
-        <Route path="overview" element={<DevOverviewPage />} />
-        <Route path="users" element={<DevUsersPage />} />
-        <Route path="monitoring" element={<DevMonitoringPage />} />
-        <Route path="analytics" element={<DevAnalyticsPage />} />
-        <Route path="domains" element={<DevDomainsPage />} />
-        <Route path="integrations" element={<DevIntegrationsPage />} />
-        <Route path="security" element={<DevSecurityPage />} />
-        <Route path="ai" element={<DevAIPage />} />
-        <Route path="logs" element={<DevLogsPage />} />
-        <Route path="api-usage" element={<DevAPIUsagePage />} />
-        <Route path="settings" element={<DevSettingsPage />} />
-      </Route>
     </Routes>
   );
 }
