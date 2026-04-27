@@ -4,14 +4,15 @@
  */
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { useStore } from '../../store/useStore.jsx';
-import { formatRupiah } from '../../logic/exportFormatter';
+import { useQuery } from '@tanstack/react-query';
+import { useBusiness } from '@/lib/BusinessContext';
+import { formatRupiah } from '@/lib/formatters';
+import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { calculateNetPPN, calculatePPhSummary, getTaxDeadlines, calculateCorporateTax, TAX_RULES } from '../../logic/tax/calculator.js';
 import { calculateFiscalCorrection } from '../../logic/tax/fiscalRules.js';
-import { exportTaxCSV } from '../../logic/exportFormatter';
+import { exportTaxCSV } from '../../logic/tax/exportFormatter';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Download, Shield, AlertTriangle, Clock, TrendingUp } from 'lucide-react';
-import './FiscalCheck.jsx';
 import PPNReport from './PPNReport.jsx';
 
 const TABS = [
@@ -22,14 +23,26 @@ const TABS = [
 ];
 
 export default function TaxCenterPage() {
-  const { state, getActiveTransactions } = useStore();
+  const { activeBusiness } = useBusiness();
   const [activeTab, setActiveTab] = useState('ppn');
-  const transactions = getActiveTransactions().filter(t => t.status === 'final');
+
+  const { data: transactions = [] } = useQuery({
+    queryKey: ['transactions', activeBusiness?.id],
+    queryFn: () => GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, status: 'Final' }),
+    enabled: !!activeBusiness,
+  });
+
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts', activeBusiness?.id],
+    queryFn: () => GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id }),
+    enabled: !!activeBusiness,
+  });
+
   const deadlines = getTaxDeadlines();
 
   const ppnData = useMemo(() => calculateNetPPN(transactions), [transactions]);
   const pphData = useMemo(() => calculatePPhSummary(transactions), [transactions]);
-  const fiscalData = useMemo(() => calculateFiscalCorrection(transactions, state.accounts), [transactions, state.accounts]);
+  const fiscalData = useMemo(() => calculateFiscalCorrection(transactions, accounts), [transactions, accounts]);
 
   const pnlSummary = useMemo(() => {
     const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -98,7 +111,7 @@ export default function TaxCenterPage() {
                       <span className="glow-cyan" style={{ color: '#00f3ff', fontWeight: 700 }}>{formatRupiah(data.totalTax)}</span>
                     </div>
                   </div>
-                  <button className="btn btn-secondary btn-sm" onClick={() => exportTaxCSV(transactions, state.accounts, code)}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => exportTaxCSV(transactions, accounts, code)}>
                     <Download size={14} /> Export CSV
                   </button>
                 </div>
