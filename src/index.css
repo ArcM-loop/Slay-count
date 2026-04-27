@@ -1,8 +1,39 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  --font-jakarta: "Plus Jakarta Sans", sans-serif;
+  
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  
+  /* Slay Count Specific Colors */
+  --color-electric-blue: hsl(var(--electric-blue));
+  --color-cyber-lime: hsl(var(--cyber-lime));
+  --color-neon-purple: hsl(var(--neon-purple));
+  --color-warm-amber: hsl(var(--warm-amber));
+}
 
 @layer base {
   :root {
@@ -27,32 +58,22 @@
     --ring: 199 100% 55%;
     --radius: 1rem;
 
-    /* Custom Slay Count tokens */
     --electric-blue: 199 100% 55%;
     --cyber-lime: 142 70% 50%;
     --neon-purple: 270 80% 65%;
     --warm-amber: 38 95% 60%;
     --glass-bg: 222 22% 13%;
     --glass-border: 222 18% 22%;
-
-    --sidebar-background: 222 25% 6%;
-    --sidebar-foreground: 210 40% 85%;
-    --sidebar-primary: 199 100% 55%;
-    --sidebar-primary-foreground: 222 25% 8%;
-    --sidebar-accent: 222 18% 14%;
-    --sidebar-accent-foreground: 210 40% 85%;
-    --sidebar-border: 222 18% 14%;
-    --sidebar-ring: 199 100% 55%;
   }
-}
 
-@layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: var(--color-border);
   }
 
   body {
-    @apply bg-background text-foreground font-jakarta;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-jakarta);
     font-feature-settings: "cv11", "ss01";
   }
 
@@ -61,10 +82,11 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-transparent;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
+    background-color: var(--color-border);
+    border-radius: 9999px;
   }
 }
 
@@ -106,6 +128,15 @@
   }
 
   .bento-card {
-    @apply glass-card rounded-2xl p-5 transition-all duration-300 hover:border-primary/30;
+    background: hsla(var(--card), 0.7);
+    backdrop-filter: blur(20px);
+    border: 1px solid hsla(var(--border), 0.4);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    transition: all 0.3s ease;
+  }
+  
+  .bento-card:hover {
+    border-color: hsla(var(--primary), 0.3);
   }
 }
