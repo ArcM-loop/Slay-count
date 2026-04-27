@@ -6,7 +6,6 @@ import { computeAccountBalances } from '@/lib/journalEngine';
 import { formatRupiah } from '@/lib/formatters';
 import { Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const TYPE_ORDER = ['Aset', 'Kewajiban', 'Ekuitas', 'Pendapatan', 'Beban'];
 const TYPE_COLOR = {

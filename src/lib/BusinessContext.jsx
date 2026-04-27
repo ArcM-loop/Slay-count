@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 
 const BusinessContext = createContext(null);
 
@@ -14,7 +14,7 @@ export function BusinessProvider({ children }) {
 
     const loadBusinesses = async () => {
         setLoading(true);
-        const data = await base44.entities.Business.list('-created_date');
+        const data = await GoogleGenerativeAI.entities.Business.list('-created_date');
         setBusinesses(data);
         if (data.length > 0 && !activeBusiness) {
             setActiveBusiness(data[0]);
