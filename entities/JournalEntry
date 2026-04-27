@@ -1,0 +1,70 @@
+{
+  "name": "JournalEntry",
+  "type": "object",
+  "properties": {
+    "business_id": {
+      "type": "string",
+      "description": "ID bisnis terkait"
+    },
+    "transaction_group_id": {
+      "type": "string",
+      "description": "UUID untuk mengikat baris Debit & Kredit dari satu transaksi"
+    },
+    "transaction_id": {
+      "type": "string",
+      "description": "ID transaksi asal"
+    },
+    "account_id": {
+      "type": "string",
+      "description": "Foreign key ke Account"
+    },
+    "account_code": {
+      "type": "string",
+      "description": "Kode akun (denormalized)"
+    },
+    "account_name": {
+      "type": "string",
+      "description": "Nama akun (denormalized)"
+    },
+    "account_type": {
+      "type": "string",
+      "description": "Tipe akun (denormalized)"
+    },
+    "debit": {
+      "type": "number",
+      "default": 0,
+      "description": "Nilai debit"
+    },
+    "credit": {
+      "type": "number",
+      "default": 0,
+      "description": "Nilai kredit"
+    },
+    "description": {
+      "type": "string",
+      "description": "Keterangan entri jurnal"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Tanggal transaksi"
+    },
+    "entry_type": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "auto_transaction",
+        "auto_depreciation",
+        "closing"
+      ],
+      "default": "auto_transaction",
+      "description": "Sumber entri jurnal"
+    }
+  },
+  "required": [
+    "business_id",
+    "transaction_group_id",
+    "account_id",
+    "date"
+  ]
+}

@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 25% 8%;
+    --foreground: 210 40% 95%;
+    --card: 222 22% 11%;
+    --card-foreground: 210 40% 95%;
+    --popover: 222 22% 11%;
+    --popover-foreground: 210 40% 95%;
+    --primary: 199 100% 55%;
+    --primary-foreground: 222 25% 8%;
+    --secondary: 222 18% 16%;
+    --secondary-foreground: 210 40% 85%;
+    --muted: 222 18% 14%;
+    --muted-foreground: 215 20% 55%;
+    --accent: 142 70% 50%;
+    --accent-foreground: 222 25% 8%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 95%;
+    --border: 222 18% 18%;
+    --input: 222 18% 16%;
+    --ring: 199 100% 55%;
+    --radius: 1rem;
+
+    /* Custom Slay Count tokens */
+    --electric-blue: 199 100% 55%;
+    --cyber-lime: 142 70% 50%;
+    --neon-purple: 270 80% 65%;
+    --warm-amber: 38 95% 60%;
+    --glass-bg: 222 22% 13%;
+    --glass-border: 222 18% 22%;
+
+    --sidebar-background: 222 25% 6%;
+    --sidebar-foreground: 210 40% 85%;
+    --sidebar-primary: 199 100% 55%;
+    --sidebar-primary-foreground: 222 25% 8%;
+    --sidebar-accent: 222 18% 14%;
+    --sidebar-accent-foreground: 210 40% 85%;
+    --sidebar-border: 222 18% 14%;
+    --sidebar-ring: 199 100% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-jakarta;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: hsla(var(--glass-bg), 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid hsla(var(--glass-border), 0.5);
+  }
+
+  .glass-card {
+    background: hsla(var(--card), 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid hsla(var(--border), 0.4);
+  }
+
+  .gradient-text-blue {
+    background: linear-gradient(135deg, hsl(var(--electric-blue)), hsl(var(--neon-purple)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-text-lime {
+    background: linear-gradient(135deg, hsl(var(--cyber-lime)), hsl(var(--electric-blue)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glow-blue {
+    box-shadow: 0 0 20px hsla(var(--electric-blue), 0.3);
+  }
+
+  .glow-lime {
+    box-shadow: 0 0 20px hsla(var(--cyber-lime), 0.3);
+  }
+
+  .bento-card {
+    @apply glass-card rounded-2xl p-5 transition-all duration-300 hover:border-primary/30;
+  }
+}

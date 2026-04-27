@@ -1,0 +1,148 @@
+{
+  "name": "Transaction",
+  "type": "object",
+  "properties": {
+    "business_id": {
+      "type": "string",
+      "description": "ID bisnis terkait"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Tanggal transaksi"
+    },
+    "description": {
+      "type": "string",
+      "description": "Deskripsi transaksi"
+    },
+    "amount": {
+      "type": "number",
+      "description": "Jumlah transaksi (selalu positif)"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "Pemasukan",
+        "Pengeluaran",
+        "Transfer"
+      ],
+      "description": "Tipe transaksi"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Inbox",
+        "Divalidasi",
+        "Final"
+      ],
+      "default": "Inbox"
+    },
+    "account_id": {
+      "type": "string",
+      "description": "ID akun COA terkait"
+    },
+    "account_name": {
+      "type": "string",
+      "description": "Nama akun (denormalized)"
+    },
+    "merchant_name": {
+      "type": "string",
+      "description": "Nama vendor/merchant"
+    },
+    "reference_number": {
+      "type": "string"
+    },
+    "receipt_url": {
+      "type": "string",
+      "description": "URL foto nota"
+    },
+    "ai_suggested_category": {
+      "type": "string"
+    },
+    "ai_confidence": {
+      "type": "number",
+      "description": "AI confidence score 0-100"
+    },
+    "ai_reason": {
+      "type": "string",
+      "description": "Alasan AI memilih kategori"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "Manual",
+        "Import CSV",
+        "Scan Nota"
+      ],
+      "default": "Manual"
+    },
+    "split_items": {
+      "type": "array",
+      "description": "Detail split transaksi",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "account_id": {
+            "type": "string"
+          },
+          "account_name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tax_type": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "PPN_KELUARAN",
+        "PPN_MASUKAN",
+        "PPH_21",
+        "PPH_23_JASA",
+        "PPH_23_DIVIDEN",
+        "PPH_4_2_SEWA",
+        "PPH_4_2_KONSTRUKSI",
+        "FINAL_UMKM"
+      ],
+      "default": "NONE",
+      "description": "Jenis pajak yang berlaku"
+    },
+    "tax_rate": {
+      "type": "number",
+      "default": 0,
+      "description": "Tarif pajak (desimal, misal: 0.11 = 11%)"
+    },
+    "tax_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Nominal pajak yang dipotong/dipungut"
+    },
+    "is_deductible": {
+      "type": "boolean",
+      "default": true,
+      "description": "Apakah biaya dapat dikurangkan secara fiskal"
+    },
+    "vendor_npwp": {
+      "type": "string",
+      "description": "NPWP vendor/lawan transaksi untuk e-Bupot"
+    }
+  },
+  "required": [
+    "business_id",
+    "date",
+    "amount",
+    "type"
+  ]
+}

@@ -1,0 +1,52 @@
+type User @table {
+  email: String!
+  passwordHash: String!
+  businessName: String!
+  createdAt: Timestamp!
+  contactPerson: String
+  businessAddress: String
+  industry: String
+}
+
+type Transaction @table {
+  user: User
+  transactionDate: Date!
+  description: String!
+  amount: Float!
+  transactionType: String! # e.g., 'INCOME', 'EXPENSE'
+  createdAt: Timestamp!
+  receiptImageUrl: String
+  notes: String
+  originalSource: String # e.g., 'MANUAL', 'SCAN', 'IMPORT'
+}
+
+type AccountCategory @table {
+  user: User
+  categoryName: String!
+  categoryType: String! # e.g., 'ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'
+  isSystemDefined: Boolean!
+  description: String
+  parentCategory: AccountCategory
+}
+
+type Account @table {
+  user: User
+  accountName: String!
+  accountType: String! # e.g., 'ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'
+  accountNumber: String!
+  isSystemDefined: Boolean!
+  description: String
+  parentAccount: Account
+}
+
+type JournalEntry @table {
+  transaction: Transaction
+  user: User
+  entryDate: Date!
+  debitAccount: Account!
+  creditAccount: Account!
+  amount: Float!
+  createdAt: Timestamp!
+  description: String
+  aiConfidenceScore: Float
+}

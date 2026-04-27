@@ -1,0 +1,40 @@
+mutation SeedDatabase @transaction @auth(level: USER, insecureReason: "This mutation is for seeding initial data and requires a logged-in user.") {
+  # Example: Inserting some sample products
+  product_insertMany(data: [
+    {
+      id: "product-1-uuid",
+      name: "Super Widget",
+      description: "A fantastic widget for all your needs.",
+      price: 19.99,
+      category: "Widgets",
+      imageUrl: "https://example.com/widget1.jpg"
+    },
+    {
+      id: "product-2-uuid",
+      name: "Mega Gadget",
+      description: "The ultimate gadget for productivity.",
+      price: 99.50,
+      category: "Gadgets",
+      imageUrl: "https://example.com/gadget2.jpg"
+    },
+    {
+      id: "product-3-uuid",
+      name: "Mini Device",
+      description: "A compact device for on-the-go.",
+      price: 5.00,
+      category: "Devices",
+      imageUrl: "https://example.com/device3.jpg"
+    }
+  ])
+  # You can add more insertMany operations for other types here
+  # For example, if you have an 'Order' type:
+  # order_insertMany(data: [
+  #   {
+  #     id: "order-1-uuid",
+  #     productId: "product-1-uuid",
+  #     quantity: 2,
+  #     userId: "some-user-id",
+  #     status: "pending"
+  #   }
+  # ])
+}

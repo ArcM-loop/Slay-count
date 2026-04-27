@@ -1,0 +1,33 @@
+{
+  "name": "Business",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nama bisnis"
+    },
+    "description": {
+      "type": "string",
+      "description": "Deskripsi singkat bisnis"
+    },
+    "industry": {
+      "type": "string",
+      "description": "Industri bisnis"
+    },
+    "currency": {
+      "type": "string",
+      "default": "IDR"
+    },
+    "owner_email": {
+      "type": "string",
+      "description": "Email pemilik bisnis"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

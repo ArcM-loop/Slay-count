@@ -1,0 +1,67 @@
+{
+  "name": "FixedAsset",
+  "type": "object",
+  "properties": {
+    "business_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string",
+      "description": "Nama aset tetap"
+    },
+    "account_id": {
+      "type": "string",
+      "description": "Akun COA terkait"
+    },
+    "account_name": {
+      "type": "string"
+    },
+    "acquisition_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "acquisition_cost": {
+      "type": "number",
+      "description": "Harga perolehan"
+    },
+    "salvage_value": {
+      "type": "number",
+      "default": 0,
+      "description": "Nilai sisa"
+    },
+    "useful_life_months": {
+      "type": "number",
+      "description": "Umur ekonomis (bulan)"
+    },
+    "depreciation_method": {
+      "type": "string",
+      "enum": [
+        "Garis Lurus",
+        "Saldo Menurun"
+      ],
+      "default": "Garis Lurus"
+    },
+    "accumulated_depreciation": {
+      "type": "number",
+      "default": 0
+    },
+    "last_depreciation_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "business_id",
+    "name",
+    "acquisition_cost",
+    "useful_life_months",
+    "acquisition_date"
+  ]
+}

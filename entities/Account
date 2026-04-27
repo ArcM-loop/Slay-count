@@ -1,0 +1,51 @@
+{
+  "name": "Account",
+  "type": "object",
+  "properties": {
+    "business_id": {
+      "type": "string",
+      "description": "ID bisnis terkait"
+    },
+    "code": {
+      "type": "string",
+      "description": "Kode akun (misal: 1-1001)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Nama akun"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "Aset",
+        "Kewajiban",
+        "Ekuitas",
+        "Pendapatan",
+        "Beban"
+      ],
+      "description": "Tipe akun"
+    },
+    "sub_type": {
+      "type": "string",
+      "description": "Sub-tipe akun (misal: Aset Lancar, Aset Tetap)"
+    },
+    "description": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "is_system": {
+      "type": "boolean",
+      "default": false,
+      "description": "Akun bawaan sistem"
+    }
+  },
+  "required": [
+    "business_id",
+    "code",
+    "name",
+    "type"
+  ]
+}

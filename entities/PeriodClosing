@@ -1,0 +1,41 @@
+{
+  "name": "PeriodClosing",
+  "type": "object",
+  "properties": {
+    "business_id": {
+      "type": "string"
+    },
+    "period": {
+      "type": "string",
+      "description": "Format YYYY-MM"
+    },
+    "closed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "closing_balance": {
+      "type": "number",
+      "description": "Saldo laba/rugi saat ditutup"
+    },
+    "total_pendapatan": {
+      "type": "number"
+    },
+    "total_beban": {
+      "type": "number"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "journal_entry_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "ID jurnal penutup yang dibuat"
+    }
+  },
+  "required": [
+    "business_id",
+    "period"
+  ]
+}

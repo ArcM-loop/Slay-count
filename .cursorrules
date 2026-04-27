@@ -1,0 +1,54 @@
+{
+  "project_name": "SlayCount",
+  "version": "1.0.0",
+  "standards": {
+    "modular_coding": {
+      "principle": "Small, single-responsibility modules only.",
+      "max_component_lines": 150,
+      "max_function_lines": 30,
+      "separation_of_concerns": [
+        "UI: /src/components (purely presentation)",
+        "State/Hooks: /src/hooks (React-specific logic)",
+        "Logic: /src/logic (pure JavaScript business/accounting/tax logic)",
+        "Services: /src/services (API calls and external integrations)",
+        "Lib: /src/lib (utility and helper libraries)"
+      ]
+    },
+    "naming_conventions": {
+      "variables": "descriptive_camelCase (e.g., calculateTotalRevenue)",
+      "booleans": "is/has/should prefix (e.g., isTransactionValid)",
+      "folders": "kebab-case or camelCase (be consistent with existing patterns)",
+      "forbidden": ["Abbreviations that are not industry standards (avoid trx, rev, amt)"]
+    },
+    "documentation": {
+      "requirement": "Mandatory JSDoc for all exported functions and components.",
+      "style": "Brief explanation of purpose, parameters, and return value."
+    },
+    "accounting_standards": {
+      "compliance": "PSAK (Pernyataan Standar Akuntansi Keuangan) for Indonesia.",
+      "precision": "Use appropriate decimal precision for financial calculations.",
+      "export": {
+        "format": "Professional Accounting Format",
+        "excel": "Use STYLES defined in /src/lib/excelExporter.js. No emojis or dark themes in official reports. Standard headers must include: Entity Name, Report Type, and Period."
+      }
+    },
+    "ui_ux": {
+      "app_aesthetic": "Neon Dark Mode / Premium Modern Web Design.",
+      "report_aesthetic": "Professional, White-background, Auditor-friendly (minimalist and clean).",
+      "animations": "Subtle framer-motion micro-animations for interactions."
+    },
+    "anti_patterns": {
+      "nested_ternaries": "Forbidden. Use early returns or if-else blocks.",
+      "magic_numbers": "Extract all constant values (tax rates, thresholds) to /src/logic/constants.js.",
+      "hardcore_code": "Prioritize readability and maintainability over clever one-liners.",
+      "client_side_security": "Identity verification MUST NOT rely solely on the client. Always verify user identity (e.g., via auth.getUser() or verifyIdToken()) on the server-side for every data request."
+    }
+  },
+  "instructions": [
+    "Always perform server-side identity verification for any operation involving sensitive data.",
+    "Always check AI_CODING_STANDARDS.md before implementing new modules.",
+    "If a component grows beyond 150 lines, refactor it into smaller sub-components in a local /components folder or /src/components/ui.",
+    "Logic relating to tax or accounting calculations MUST reside in /src/logic and be unit-testable.",
+    "For Excel exports, follow the template and styles established in /src/lib/excelExporter.js strictly."
+  ]
+}
