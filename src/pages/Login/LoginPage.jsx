@@ -11,12 +11,11 @@ const LoginPage = () => {
     setLoading(true);
     setError(null);
     try {
-      // Menggunakan Supabase Auth, bukan Firebase
-      const { error } = await GoogleGenerativeAI.auth.loginWithGoogle();
+      const { data, error } = await GoogleGenerativeAI.auth.loginWithGoogle();
       if (error) throw error;
       
-      // Catatan: Redirect tidak butuh navigate() karena Supabase 
-      // akan otomatis me-refresh halaman ke Provider Google.
+      localStorage.setItem('slaycount_session_token', 'firebase-auth-token-placeholder');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Terjadi kesalahan saat menghubungkan ke Google.');
     } finally {

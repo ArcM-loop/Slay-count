@@ -1,98 +1,131 @@
-import { createClient } from '@supabase/supabase-js';
+import { initializeApp } from "firebase/app";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword } from "firebase/auth";
+import { getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit as firestoreLimit, writeBatch } from "firebase/firestore";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const firebaseConfig = {
+  apiKey: "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g",
+  authDomain: "accountomation.firebaseapp.com",
+  projectId: "accountomation",
+  storageBucket: "accountomation.firebasestorage.app",
+  messagingSenderId: "825422475013",
+  appId: "1:825422475013:web:8cf09b6a53aac97838516c",
+  measurementId: "G-6GR6FE8W90"
+};
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
 
-/**
- * GoogleGenerativeAI.js — SlayCount API Client (Supabase Edition)
- * Berfungsi sebagai wrapper agar kode lama tetap jalan tapi data disimpan di Supabase.
- */
 export const GoogleGenerativeAI = {
   auth: {
     me: async () => {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error || !user) throw new Error('Not authenticated');
-      return user;
-    },
-    login: async (email, password) => {
-      return await supabase.auth.signInWithPassword({ email, password });
-    },
-    loginWithGoogle: async () => {
-      return await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin
-        }
+      return new Promise((resolve, reject) => {
+        const unsubscribe = auth.onAuthStateChanged(user => {
+          unsubscribe();
+          if (user) resolve(user);
+          else reject(new Error('Not authenticated'));
+        });
       });
     },
+    login: async (email, password) => {
+      return await signInWithEmailAndPassword(auth, email, password);
+    },
+    loginWithGoogle: async () => {
+      try {
+        const result = await signInWithPopup(auth, googleProvider);
+        return { data: result.user, error: null };
+      } catch (error) {
+        return { data: null, error };
+      }
+    },
     logout: async () => {
-      await supabase.auth.signOut();
+      await signOut(auth);
+      localStorage.removeItem('slaycount_session_token');
     }
   },
 
   entities: {
-    Transaction: createSupabaseEntity('transactions'),
-    Account: createSupabaseEntity('accounts'),
-    Business: createSupabaseEntity('businesses'),
-    JournalEntry: createSupabaseEntity('journal_entries'),
-    FixedAsset: createSupabaseEntity('fixed_assets'),
-    PeriodClosing: createSupabaseEntity('period_closings'),
+    Transaction: createFirebaseEntity('transactions'),
+    Account: createFirebaseEntity('accounts'),
+    Business: createFirebaseEntity('businesses'),
+    JournalEntry: createFirebaseEntity('journal_entries'),
+    FixedAsset: createFirebaseEntity('fixed_assets'),
+    PeriodClosing: createFirebaseEntity('period_closings'),
   }
 };
 
-function createSupabaseEntity(tableName) {
+function createFirebaseEntity(tableName) {
+  const colRef = collection(db, tableName);
   return {
-    filter: async (criteria = {}, sort = '-created_at', limit = 100) => {
-      let query = supabase.from(tableName).select('*');
+    filter: async (criteria = {}, sort = '-created_at', limitNum = 100) => {
+      const constraints = [];
       
-      // Apply filters
       Object.entries(criteria).forEach(([key, value]) => {
-        query = query.eq(key, value);
+        constraints.push(where(key, '==', value));
       });
 
-      // Apply sorting
-      const isDesc = sort.startsWith('-');
-      const column = isDesc ? sort.substring(1) : sort;
-      query = query.order(column, { ascending: !isDesc });
+      if (sort) {
+        const isDesc = sort.startsWith('-');
+        const column = isDesc ? sort.substring(1) : sort;
+        constraints.push(orderBy(column, isDesc ? 'desc' : 'asc'));
+      }
 
-      // Apply limit
-      query = query.limit(limit);
+      if (limitNum) {
+        constraints.push(firestoreLimit(limitNum));
+      }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const finalQuery = query(colRef, ...constraints);
+      const snapshot = await getDocs(finalQuery);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     },
 
     get: async (id) => {
-      const { data, error } = await supabase.from(tableName).select('*').eq('id', id).single();
-      if (error) throw error;
-      return data;
+      const docRef = doc(db, tableName, id);
+      const snapshot = await getDoc(docRef);
+      if (!snapshot.exists()) throw new Error('Document not found');
+      return { id: snapshot.id, ...snapshot.data() };
     },
 
     create: async (payload) => {
-      const { data, error } = await supabase.from(tableName).insert([payload]).select().single();
-      if (error) throw error;
-      return data;
+      const dataToSave = {
+        ...payload,
+        created_at: payload.created_at || new Date().toISOString()
+      };
+      
+      const docRef = await addDoc(colRef, dataToSave);
+      return { id: docRef.id, ...dataToSave };
     },
 
     update: async (id, payload) => {
-      const { data, error } = await supabase.from(tableName).update(payload).eq('id', id).select().single();
-      if (error) throw error;
-      return data;
+      const docRef = doc(db, tableName, id);
+      await updateDoc(docRef, payload);
+      const updatedSnapshot = await getDoc(docRef);
+      return { id: updatedSnapshot.id, ...updatedSnapshot.data() };
     },
 
     delete: async (id) => {
-      const { error } = await supabase.from(tableName).delete().eq('id', id);
-      if (error) throw error;
+      const docRef = doc(db, tableName, id);
+      await deleteDoc(docRef);
       return true;
     },
 
     bulkCreate: async (items) => {
-      const { data, error } = await supabase.from(tableName).insert(items).select();
-      if (error) throw error;
-      return data;
+      const batch = writeBatch(db);
+      const createdItems = [];
+      
+      items.forEach(item => {
+        const newDocRef = doc(collection(db, tableName));
+        const dataToSave = {
+          ...item,
+          created_at: item.created_at || new Date().toISOString()
+        };
+        batch.set(newDocRef, dataToSave);
+        createdItems.push({ id: newDocRef.id, ...dataToSave });
+      });
+      
+      await batch.commit();
+      return createdItems;
     }
   };
 }
