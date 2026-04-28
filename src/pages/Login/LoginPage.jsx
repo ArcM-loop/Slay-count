@@ -15,7 +15,7 @@ const LoginPage = () => {
       if (error) throw error;
       
       localStorage.setItem('slaycount_session_token', 'firebase-auth-token-placeholder');
-      navigate('/dashboard');
+      navigate('/');
     } catch (err) {
       setError(err.message || 'Terjadi kesalahan saat menghubungkan ke Google.');
     } finally {

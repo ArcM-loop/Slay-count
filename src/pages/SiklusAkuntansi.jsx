@@ -147,7 +147,7 @@ export default function SiklusAkuntansi() {
         }
 
         // Ambil semua entri jurnal periode ini
-        const { data: allEntries = [] } = await GoogleGenerativeAI.entities.JournalEntry.filter({
+        const allEntries = await GoogleGenerativeAI.entities.JournalEntry.filter({
             business_id: activeBusiness.id,
         }, '-date', 5000);
 

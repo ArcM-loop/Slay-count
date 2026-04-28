@@ -52,6 +52,7 @@ export const GoogleGenerativeAI = {
     JournalEntry: createFirebaseEntity('journal_entries'),
     FixedAsset: createFirebaseEntity('fixed_assets'),
     PeriodClosing: createFirebaseEntity('period_closings'),
+    PurchaseOrder: createFirebaseEntity('purchase_orders'),
   }
 };
 
@@ -61,6 +62,11 @@ function createFirebaseEntity(tableName) {
     filter: async (criteria = {}, sort = '-created_at', limitNum = 100) => {
       const constraints = [];
       
+      // Inject user_id filter for isolation
+      if (auth.currentUser) {
+        constraints.push(where('user_id', '==', auth.currentUser.uid));
+      }
+
       Object.entries(criteria).forEach(([key, value]) => {
         constraints.push(where(key, '==', value));
       });
@@ -80,6 +86,27 @@ function createFirebaseEntity(tableName) {
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     },
 
+    list: async (sort = '-created_at', limitNum = 100) => {
+      const constraints = [];
+      
+      // Inject user_id filter for isolation
+      if (auth.currentUser) {
+        constraints.push(where('user_id', '==', auth.currentUser.uid));
+      }
+
+      if (sort) {
+        const isDesc = sort.startsWith('-');
+        const column = isDesc ? sort.substring(1) : sort;
+        constraints.push(orderBy(column, isDesc ? 'desc' : 'asc'));
+      }
+      if (limitNum) {
+        constraints.push(firestoreLimit(limitNum));
+      }
+      const finalQuery = query(colRef, ...constraints);
+      const snapshot = await getDocs(finalQuery);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+
     get: async (id) => {
       const docRef = doc(db, tableName, id);
       const snapshot = await getDoc(docRef);
@@ -88,8 +115,10 @@ function createFirebaseEntity(tableName) {
     },
 
     create: async (payload) => {
+      const user = auth.currentUser;
       const dataToSave = {
         ...payload,
+        user_id: user ? user.uid : (payload.user_id || null),
         created_at: payload.created_at || new Date().toISOString()
       };
       
@@ -113,11 +142,13 @@ function createFirebaseEntity(tableName) {
     bulkCreate: async (items) => {
       const batch = writeBatch(db);
       const createdItems = [];
+      const user = auth.currentUser;
       
       items.forEach(item => {
         const newDocRef = doc(collection(db, tableName));
         const dataToSave = {
           ...item,
+          user_id: user ? user.uid : (item.user_id || null),
           created_at: item.created_at || new Date().toISOString()
         };
         batch.set(newDocRef, dataToSave);

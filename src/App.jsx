@@ -43,6 +43,7 @@ function App() {
         </PrivateRoute>
       }>
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<Navigate to="/" replace />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/reports" element={<ReportsPage />} />

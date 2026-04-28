@@ -164,7 +164,7 @@ export function computeAccountBalances(journalEntries) {
  * @param {string} transactionId 
  */
 export async function deleteJournalEntries(transactionId) {
-  const { data: entries = [] } = await GoogleGenerativeAI.entities.JournalEntry.filter({
+  const entries = await GoogleGenerativeAI.entities.JournalEntry.filter({
     transaction_id: transactionId
   });
   
