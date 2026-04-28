@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Plus, CheckCircle, Building2, Trash2 } from 'lucide-react';
+import { Loader2, Plus, CheckCircle, Building2, Trash2, MessageCircle } from 'lucide-react';
+import TutorialChatBot from '@/components/tutorial/TutorialChatBot';
 
 export default function Pengaturan() {
   const { businesses, activeBusiness, setActiveBusiness, refreshBusinesses } = useBusiness();
@@ -95,8 +96,29 @@ export default function Pengaturan() {
         )}
       </motion.div>
 
+      {/* Tutorial Bot section */}
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bento-card space-y-3">
+        <h2 className="font-bold flex items-center gap-2">
+          <MessageCircle className="w-5 h-5 text-neon-purple" /> Tutorial Bot 💅
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Bingung cara pake Slay Count? Chat sama <strong className="text-neon-purple">Slay Bot</strong> aja!
+          Dia bakal jelasin semua fitur dengan bahasa yang gampang dipahami~ ✨
+        </p>
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-neon-purple/10 to-primary/10 border border-neon-purple/20">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-purple to-primary flex items-center justify-center">
+            <span className="text-lg">🤖</span>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium">Slay Bot siap bantuin kamu!</p>
+            <p className="text-xs text-muted-foreground">Klik tombol chat di kiri bawah untuk mulai~</p>
+          </div>
+          <div className="w-2.5 h-2.5 rounded-full bg-cyber-lime animate-pulse" />
+        </div>
+      </motion.div>
+
       {/* About section */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bento-card">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="bento-card">
         <h2 className="font-bold mb-3">✨ Tentang Slay Count</h2>
         <div className="space-y-2 text-sm text-muted-foreground">
           <p>🤖 Powered by AI — scan nota, import CSV, auto-kategorisasi</p>
@@ -132,6 +154,9 @@ export default function Pengaturan() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Floating Tutorial ChatBot */}
+      <TutorialChatBot />
     </div>
   );
 }
