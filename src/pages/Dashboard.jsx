@@ -10,17 +10,21 @@ import { TrendingUp, TrendingDown, Wallet, Loader2 } from 'lucide-react';
 import TrialBalance from '@/components/dashboard/TrialBalance';
 import HudStatCard from '@/components/hud/HudStatCard';
 
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+
 const COLORS = ['hsl(199, 100%, 55%)', 'hsl(142, 70%, 50%)', 'hsl(270, 80%, 65%)', 'hsl(38, 95%, 60%)', 'hsl(0, 84%, 60%)'];
 
 export default function Dashboard() {
-  const { activeBusiness } = useBusiness();
+  const { activeBusiness, loading: businessLoading } = useBusiness();
 
-  const { data: transactions = [], isLoading } = useQuery({
+  const { data: transactions = [], isLoading: transactionsLoading } = useQuery({
     queryKey: ['transactions', activeBusiness?.id],
-    // 2. base44 diganti jadi GoogleGenerativeAI di sini
     queryFn: () => GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id }, '-date', 100),
     enabled: !!activeBusiness,
   });
+
+  const isLoading = businessLoading || transactionsLoading;
 
   const stats = useMemo(() => {
     const finalTx = transactions.filter(t => t.status === 'Final');
@@ -52,20 +56,32 @@ export default function Dashboard() {
   const recentTx = transactions.slice(0, 6);
   const inboxCount = transactions.filter(t => t.status === 'Inbox').length;
 
-  if (!activeBusiness) {
+  if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <div className="text-6xl">🏢</div>
-        <h2 className="text-xl font-bold">Belum ada bisnis nih</h2>
-        <p className="text-muted-foreground text-sm">Yuk buat bisnis dulu di Pengaturan!</p>
+      <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto animate-pulse">
+        <div className="h-20 bg-secondary rounded-3xl" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="h-32 bg-secondary rounded-3xl" />
+          <div className="h-32 bg-secondary rounded-3xl" />
+          <div className="h-32 bg-secondary rounded-3xl" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-80 bg-secondary rounded-3xl" />
+          <div className="h-80 bg-secondary rounded-3xl" />
+        </div>
       </div>
     );
   }
 
-  if (isLoading) {
+  if (!activeBusiness && !businessLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+        <div className="text-6xl animate-bounce">🏢</div>
+        <h2 className="text-xl font-bold">Belum ada bisnis nih</h2>
+        <p className="text-muted-foreground text-sm">Yuk buat bisnis dulu di Pengaturan!</p>
+        <Link to="/settings">
+           <Button className="mt-2 bg-primary/20 text-primary border-primary/30">Ke Pengaturan ⚙️</Button>
+        </Link>
       </div>
     );
   }
