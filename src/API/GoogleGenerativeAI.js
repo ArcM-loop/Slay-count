@@ -19,6 +19,14 @@ export const GoogleGenerativeAI = {
     login: async (email, password) => {
       return await supabase.auth.signInWithPassword({ email, password });
     },
+    loginWithGoogle: async () => {
+      return await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+    },
     logout: async () => {
       await supabase.auth.signOut();
     }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { loginWithGoogle } from '../../lib/firebaseConfig';
 import { useNavigate } from 'react-router-dom';
+import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
@@ -11,11 +11,14 @@ const LoginPage = () => {
     setLoading(true);
     setError(null);
     try {
-      await loginWithGoogle();
-      // Navigasi ke Dashboard setelah login berhasil
-      navigate('/');
+      // Menggunakan Supabase Auth, bukan Firebase
+      const { error } = await GoogleGenerativeAI.auth.loginWithGoogle();
+      if (error) throw error;
+      
+      // Catatan: Redirect tidak butuh navigate() karena Supabase 
+      // akan otomatis me-refresh halaman ke Provider Google.
     } catch (err) {
-      setError(err.message || 'Terjadi kesalahan saat login. Pastikan konfigurasi Firebase valid dan backend berjalan.');
+      setError(err.message || 'Terjadi kesalahan saat menghubungkan ke Google.');
     } finally {
       setLoading(false);
     }
