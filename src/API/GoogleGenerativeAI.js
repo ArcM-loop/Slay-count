@@ -42,6 +42,14 @@ export const GoogleGenerativeAI = {
     logout: async () => {
       await signOut(auth);
       localStorage.removeItem('slaycount_session_token');
+    },
+    waitForAuth: () => {
+      return new Promise((resolve) => {
+        const unsubscribe = auth.onAuthStateChanged(user => {
+          unsubscribe();
+          resolve(user);
+        });
+      });
     }
   },
 
@@ -60,13 +68,12 @@ function createFirebaseEntity(tableName) {
   const colRef = collection(db, tableName);
   return {
     filter: async (criteria = {}, sort = '-created_at', limitNum = 100) => {
-      const constraints = [];
-      
-      // Inject user_id filter for isolation
-      if (auth.currentUser) {
-        constraints.push(where('user_id', '==', auth.currentUser.uid));
-      }
+      let user = auth.currentUser;
+      if (!user) user = await GoogleGenerativeAI.auth.waitForAuth();
+      if (!user) return []; 
 
+      const constraints = [where('user_id', '==', user.uid)];
+      
       Object.entries(criteria).forEach(([key, value]) => {
         constraints.push(where(key, '==', value));
       });
@@ -87,13 +94,12 @@ function createFirebaseEntity(tableName) {
     },
 
     list: async (sort = '-created_at', limitNum = 100) => {
-      const constraints = [];
-      
-      // Inject user_id filter for isolation
-      if (auth.currentUser) {
-        constraints.push(where('user_id', '==', auth.currentUser.uid));
-      }
+      let user = auth.currentUser;
+      if (!user) user = await GoogleGenerativeAI.auth.waitForAuth();
+      if (!user) return [];
 
+      const constraints = [where('user_id', '==', user.uid)];
+      
       if (sort) {
         const isDesc = sort.startsWith('-');
         const column = isDesc ? sort.substring(1) : sort;
@@ -115,7 +121,9 @@ function createFirebaseEntity(tableName) {
     },
 
     create: async (payload) => {
-      const user = auth.currentUser;
+      let user = auth.currentUser;
+      if (!user) user = await GoogleGenerativeAI.auth.waitForAuth();
+      
       const dataToSave = {
         ...payload,
         user_id: user ? user.uid : (payload.user_id || null),
@@ -142,7 +150,8 @@ function createFirebaseEntity(tableName) {
     bulkCreate: async (items) => {
       const batch = writeBatch(db);
       const createdItems = [];
-      const user = auth.currentUser;
+      let user = auth.currentUser;
+      if (!user) user = await GoogleGenerativeAI.auth.waitForAuth();
       
       items.forEach(item => {
         const newDocRef = doc(collection(db, tableName));

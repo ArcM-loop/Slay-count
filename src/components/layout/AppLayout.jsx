@@ -98,8 +98,8 @@ export default function AppLayout() {
             </AnimatePresence>
           </div>
 
-          {/* Nav */}
-          <nav className="flex-1 space-y-1">
+          {/* Nav - Scrollable Area */}
+          <nav className="flex-1 space-y-1 overflow-y-auto pr-1 custom-scrollbar">
             {NAV_ITEMS.map(({ path, label, emoji }) => {
               const isActive = path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
               return (

@@ -28,12 +28,23 @@ export function calculateTax(amount, taxCode) {
 /**
  * Hitung estimasi PPh Badan (22%)
  */
-export function calculateCorporateTax(commercialProfit, fiscalCorrection = 0) {
-  const taxableIncome = commercialProfit + fiscalCorrection;
-  if (taxableIncome <= 0) return 0;
+export function calculatePPhBadan(commercialProfit, fiscalCorrection = 0) {
+  const labaFiskal = commercialProfit + fiscalCorrection;
+  const taxableIncome = Math.max(0, labaFiskal);
   
   // Tarif PPh Badan 22%
-  return Math.round(taxableIncome * 0.22);
+  const pphBadan = Math.round(taxableIncome * 0.22);
+  
+  return {
+    labaFiskal,
+    pphBadan
+  };
+}
+/**
+ * Legacy alias for calculatePPhBadan returning only the tax amount
+ */
+export function calculateCorporateTax(commercialProfit, fiscalCorrection = 0) {
+  return calculatePPhBadan(commercialProfit, fiscalCorrection).pphBadan;
 }
 
 /**
