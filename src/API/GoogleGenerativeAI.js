@@ -78,19 +78,25 @@ function createFirebaseEntity(tableName) {
         constraints.push(where(key, '==', value));
       });
 
-      if (sort) {
-        const isDesc = sort.startsWith('-');
-        const column = isDesc ? sort.substring(1) : sort;
-        constraints.push(orderBy(column, isDesc ? 'desc' : 'asc'));
-      }
-
       if (limitNum) {
         constraints.push(firestoreLimit(limitNum));
       }
 
       const finalQuery = query(colRef, ...constraints);
       const snapshot = await getDocs(finalQuery);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      let results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      if (sort) {
+        const isDesc = sort.startsWith('-');
+        const column = isDesc ? sort.substring(1) : sort;
+        results.sort((a, b) => {
+          if (a[column] < b[column]) return isDesc ? 1 : -1;
+          if (a[column] > b[column]) return isDesc ? -1 : 1;
+          return 0;
+        });
+      }
+
+      return results;
     },
 
     list: async (sort = '-created_at', limitNum = 100) => {
@@ -100,17 +106,25 @@ function createFirebaseEntity(tableName) {
 
       const constraints = [where('user_id', '==', user.uid)];
       
-      if (sort) {
-        const isDesc = sort.startsWith('-');
-        const column = isDesc ? sort.substring(1) : sort;
-        constraints.push(orderBy(column, isDesc ? 'desc' : 'asc'));
-      }
       if (limitNum) {
         constraints.push(firestoreLimit(limitNum));
       }
+      
       const finalQuery = query(colRef, ...constraints);
       const snapshot = await getDocs(finalQuery);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      let results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      if (sort) {
+        const isDesc = sort.startsWith('-');
+        const column = isDesc ? sort.substring(1) : sort;
+        results.sort((a, b) => {
+          if (a[column] < b[column]) return isDesc ? 1 : -1;
+          if (a[column] > b[column]) return isDesc ? -1 : 1;
+          return 0;
+        });
+      }
+
+      return results;
     },
 
     get: async (id) => {
