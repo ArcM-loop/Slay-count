@@ -54,10 +54,10 @@ export default function AppLayout() {
           <div className="mb-6 relative">
             <button
               onClick={() => setShowBusinessMenu(!showBusinessMenu)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors text-left"
             >
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary/20 to-neon-purple/20 flex items-center justify-center text-sm">
-                🏢
+              <div className="relative flex items-center justify-center w-8 h-8 rounded-[10px] bg-gradient-to-br from-neon-purple to-[#4a00e0] shadow-[inset_0px_2px_4px_rgba(255,255,255,0.5),inset_0px_-3px_5px_rgba(0,0,0,0.4),0px_4px_12px_rgba(157,0,255,0.3)] border border-white/20">
+                <span className="text-sm drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">🏢</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate">
@@ -99,7 +99,7 @@ export default function AppLayout() {
           </div>
 
           {/* Nav - Scrollable Area */}
-          <nav className="flex-1 space-y-1 overflow-y-auto pr-1 custom-scrollbar">
+          <nav className="flex-1 space-y-1.5 overflow-y-auto pr-1 custom-scrollbar">
             {NAV_ITEMS.map(({ path, label, emoji }) => {
               const isActive = path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
               return (
@@ -107,16 +107,24 @@ export default function AppLayout() {
                   key={path}
                   to={path}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium
+                  className={`group flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 text-sm font-medium
                     ${isActive
-                      ? 'bg-primary/15 text-primary border border-primary/20 glow-blue'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground'
+                      ? 'bg-primary/10 text-primary border border-primary/20 glow-blue'
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground'
                     }`}
                 >
-                  <span className="text-base">{emoji}</span>
+                  <div className={`
+                    relative flex items-center justify-center w-8 h-8 rounded-[10px] transition-all duration-300
+                    ${isActive 
+                      ? 'bg-gradient-to-br from-[#00f3ff] to-[#0051ff] shadow-[inset_0px_2px_4px_rgba(255,255,255,0.6),inset_0px_-3px_5px_rgba(0,0,0,0.4),0px_4px_12px_rgba(0,243,255,0.4)] border border-white/30' 
+                      : 'bg-gradient-to-br from-sidebar-accent to-background shadow-[inset_0px_2px_3px_rgba(255,255,255,0.1),inset_0px_-2px_4px_rgba(0,0,0,0.4),0px_3px_6px_rgba(0,0,0,0.2)] border border-white/5 group-hover:shadow-[inset_0px_2px_4px_rgba(255,255,255,0.2),inset_0px_-2px_4px_rgba(0,0,0,0.4),0px_4px_8px_rgba(0,0,0,0.4)]'
+                    }
+                  `}>
+                    <span className={`text-sm transition-transform duration-300 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>{emoji}</span>
+                  </div>
                   {label}
                   {isActive && (
-                    <motion.div layoutId="nav-indicator" className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
+                    <motion.div layoutId="nav-indicator" className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_#00f3ff]" />
                   )}
                 </Link>
               );

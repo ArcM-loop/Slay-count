@@ -10,6 +10,18 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 // ============================================================
 const KNOWLEDGE_BASE = [
   {
+    keywords: ['cepat', 'efisien', 'bantu', 'kerja', 'keunggulan', 'alasan', 'kenapa harus', 'benefit', 'untung', 'alasan pakai', 'kenapa pake'],
+    answer: 'Slay Count tuh dibikin khusus biar kamu kerja cerdas, bukan kerja keras! ✨ Ada AI Biyo yang siap scan nota, auto-kategorisasi transaksi, dan baca data Excel berantakan. Kerjaan akuntansi yang tadinya butuh 2 hari, sekarang kelar 5 menit doang! 💅 Slay banget kan?'
+  },
+  {
+    keywords: ['malas', 'males', 'setengah jadi', 'capek', 'ulang', 'ribet', 'pusing', 'berantakan'],
+    answer: 'Males input ulang karena data udah setengah jadi di Excel? Tenang aja! 💅 Slay Count punya fitur Slay AI Excel Importer. Kamu tinggal lempar file mutasi/excel kamu, nanti AI kita yang otomatis mikir dan ngerapiin formatnya. No copy-paste club! 🔥'
+  },
+  {
+    keywords: ['baru', 'update', 'fitur baru', 'terbaru'],
+    answer: 'Kita baru aja rilis Slay AI Excel Importer lho! 🔥 Kamu bisa upload Excel mutasi berantakan, dan AI kita bakal otomatis baca format kolomnya tanpa perlu kamu edit manual. Plus, halaman Pengaturan kita sekarang udah super premium! ✨'
+  },
+  {
     keywords: ['dashboard', 'beranda', 'home', 'halaman utama'],
     answer: 'Dashboard itu kayak home base kamu bestie! 🏠 Di situ ada ringkasan keuangan bisnis kamu — total pemasukan, pengeluaran, sama grafik biar kamu tau kondisi bisnis sekilas. Tinggal buka aja, udah keliatan semua~ ✨'
   },
@@ -67,7 +79,7 @@ const KNOWLEDGE_BASE = [
   },
   {
     keywords: ['halo', 'hai', 'hey', 'hi', 'hello', 'helo', 'p', 'woi', 'bang', 'kak', 'sis', 'bro'],
-    answer: 'Haiii bestie! 👋✨ Aku Slay Bot, asisten tutorial kamu di Slay Count~ Mau tau cara pake fitur apa nih? Tanya aja, aku bantuin! 💅🔥'
+    answer: 'Haiii bestie! 👋✨ Aku Slay Bot, asisten tutorial kamu di Slay Count~ Mau tau cara pake fitur apa nih? Atau pengen tau alasan kenapa kamu HARUS pake aplikasi ini? Tanya aja! 💅🔥'
   },
   {
     keywords: ['terima kasih', 'makasih', 'thanks', 'thank', 'thx', 'tq'],
@@ -75,7 +87,7 @@ const KNOWLEDGE_BASE = [
   },
   {
     keywords: ['fitur', 'feature', 'apa aja', 'bisa apa', 'fungsi'],
-    answer: 'Slay Count punya banyak fitur keren nih bestie! ✨\n\n🏠 Dashboard — ringkasan keuangan\n💳 Transaksi — catat pemasukan/pengeluaran\n📸 Scan Nota — AI baca struk otomatis\n📚 COA — kelola akun keuangan\n📊 Laporan — Laba Rugi & Neraca\n✅ Validasi — review transaksi AI\n🏛️ Tax Center — urusan pajak\n📦 Purchase Order — pesanan pembelian\n🤖 Biyo AI — asisten pintar\n\nTanya yang mana aja, aku jelasin! 💅'
+    answer: 'Slay Count punya banyak fitur keren nih bestie! ✨\n\n🏠 Dashboard — ringkasan keuangan\n💳 Transaksi — catat pemasukan/pengeluaran\n📸 Scan Nota — AI baca struk otomatis\n📚 COA — kelola akun keuangan\n📊 Laporan — Laba Rugi & Neraca\n✅ Validasi — review transaksi AI\n🏛️ Tax Center — urusan pajak\n📦 Purchase Order — pesanan pembelian\n🤖 Biyo AI — asisten pintar\n\nTanya yang mana aja, aku bakal kasih tau cara canggih pakainya! 💅'
   },
 ];
 
@@ -105,17 +117,15 @@ const BLOCKED_PATTERNS = [
 ];
 
 const DEFLECTION_RESPONSES = [
-  'Hmm aku kurang paham pertanyaan itu bestie~ 🤔 Aku cuma bisa bantuin soal cara pake fitur-fitur Slay Count aja! Coba tanya yang lain yuk~ 💅',
-  'Waduh, itu di luar jangkauan aku nih 😅 Aku spesialisasinya jelasin fitur-fitur Slay Count biar kamu makin jago pake-nya! Mau tau fitur apa? ✨',
-  'Sorry bestie, aku ga ngerti yang itu~ 🙈 Tapi kalo mau tau cara pake Dashboard, Scan Nota, atau fitur lainnya, aku siap bantuin! 💪',
-  'Ehh itu aku ga bisa jawab sih hehe~ 😬 Aku fokusnya bantuin kamu navigate fitur-fitur Slay Count aja! Ada yang mau ditanyain soal fitur? 🔥',
-  'That\'s a bit out of my lane bestie~ 🛤️ Aku tuh kayak tour guide-nya Slay Count, jadi tanya aja soal fitur-fitur yang ada! 💅✨',
+  'Hmm pertanyaanmu terlalu dalam nih bestie~ 🤔 Sebagai asisten, motoku adalah: curiosity is a good thing but it can go further cause it dangerous! 💅 Aku fokus jelasin fitur aja ya!',
+  'Waduh, itu rahasia dapur Slay Count! 😅 Daripada nanya itu, mending aku jelasin gimana Slay Count bisa pangkas waktu kerjamu dari 2 hari jadi 5 menit aja! Mau? ✨',
+  'Sorry bestie, aku ga bisa jawab yang itu~ 🙈 Tapi percaya deh, di balik layar, AI kita kerja keras biar kamu tinggal terima beres aja! 💪',
 ];
 
 const FALLBACK_RESPONSES = [
-  'Hmm aku belum ada info soal itu nih bestie~ 🤔 Coba tanya tentang fitur spesifik kayak Dashboard, Transaksi, Scan Nota, Laporan, atau Tax Center! ✨',
-  'Aku ga nemu jawaban yang pas nih~ 😅 Tapi coba tanya soal cara pake salah satu fitur Slay Count, pasti aku bisa bantuin! 💅',
-  'Belum ketemu nih jawabannya~ 🙈 Kalo mau, aku bisa jelasin fitur-fitur utama Slay Count! Ketik "fitur" buat liat daftar lengkapnya~ ✨',
+  'Hmm pertanyaanmu menarik banget! 💅 Walau aku cuma asisten tutorial, tapi aku berani jamin Slay Count bisa bikin kerjaan akuntansi kamu beres 10x lebih cepat berkat AI kita. Ketik "fitur" buat liat list lengkapnya! 🔥',
+  'Aku ga nemu jawaban spesifiknya nih~ 😅 Tapi intinya Slay Count itu dibikin buat menghempas semua alasan "males nginput". Coba tanya tentang fitur Auto-Pilot atau Import Excel! 💅',
+  'Waduh, SlayBot lagi loading nih~ 🙈 Kalo mau, aku bisa pamerin fitur-fitur Slay Count yang bakal memanjakan hidupmu! Ketik "fitur" yaa~ ✨',
 ];
 
 /**
