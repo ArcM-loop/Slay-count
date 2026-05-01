@@ -9,17 +9,29 @@ import {
 import { Button } from '@/components/ui/button';
 import AddTransactionModal from '@/components/transactions/AddTransactionModal';
 
+// 3D Assets
+import dashboardIcon from '@/assets/3d/dashboard.png';
+import transactionsIcon from '@/assets/3d/transactions.png';
+import coaIcon from '@/assets/3d/coa.png';
+import reportsIcon from '@/assets/3d/reports.png';
+import validationIcon from '@/assets/3d/validation.png';
+import poIcon from '@/assets/3d/po.png';
+import taxIcon from '@/assets/3d/tax.png';
+import aiIcon from '@/assets/3d/ai.png';
+import settingsIcon from '@/assets/3d/settings.png';
+import businessIcon from '@/assets/3d/business.png';
+
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard, emoji: '🏠' },
-  { path: '/transaksi', label: 'Transaksi', icon: ArrowLeftRight, emoji: '💳' },
-  { path: '/akun', label: 'COA', icon: BookOpen, emoji: '📚' },
-  { path: '/laporan', label: 'Laporan', icon: BarChart3, emoji: '📊' },
-  { path: '/validasi', label: 'Validasi', icon: ShieldCheck, emoji: '✅' },
-  { path: '/siklus', label: 'Siklus', icon: RotateCcw, emoji: '♻️' },
-  { path: '/purchase-order', label: 'Purchase Order', icon: BookOpen, emoji: '📦' },
-  { path: '/tax', label: 'Tax Center', icon: Landmark, emoji: '🏛️' },
-  { path: '/ai-dashboard', label: 'Biyo AI', icon: Zap, emoji: '🤖' },
-  { path: '/pengaturan', label: 'Pengaturan', icon: Settings, emoji: '⚙️' },
+  { path: '/', label: 'Dashboard', icon: LayoutDashboard, emoji: '🏠', image: dashboardIcon },
+  { path: '/transaksi', label: 'Transaksi', icon: ArrowLeftRight, emoji: '💳', image: transactionsIcon },
+  { path: '/akun', label: 'COA', icon: BookOpen, emoji: '📚', image: coaIcon },
+  { path: '/laporan', label: 'Laporan', icon: BarChart3, emoji: '📊', image: reportsIcon },
+  { path: '/validasi', label: 'Validasi', icon: ShieldCheck, emoji: '✅', image: validationIcon },
+  { path: '/siklus', label: 'Siklus', icon: RotateCcw, emoji: '♻️' }, // Siklus tetep pake emote biasa
+  { path: '/purchase-order', label: 'Purchase Order', icon: BookOpen, emoji: '📦', image: poIcon },
+  { path: '/tax', label: 'Tax Center', icon: Landmark, emoji: '🏛️', image: taxIcon },
+  { path: '/ai-dashboard', label: 'Biyo AI', icon: Zap, emoji: '🤖', image: aiIcon },
+  { path: '/pengaturan', label: 'Pengaturan', icon: Settings, emoji: '⚙️', image: settingsIcon },
 ];
 
 export default function AppLayout() {
@@ -56,8 +68,8 @@ export default function AppLayout() {
               onClick={() => setShowBusinessMenu(!showBusinessMenu)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors text-left"
             >
-              <div className="relative flex items-center justify-center w-8 h-8 rounded-[10px] bg-gradient-to-br from-neon-purple to-[#4a00e0] shadow-[inset_0px_2px_4px_rgba(255,255,255,0.5),inset_0px_-3px_5px_rgba(0,0,0,0.4),0px_4px_12px_rgba(157,0,255,0.3)] border border-white/20">
-                <span className="text-sm drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">🏢</span>
+              <div className="relative flex items-center justify-center w-9 h-9 rounded-[10px] bg-gradient-to-br from-neon-purple to-[#4a00e0] shadow-[inset_0px_2px_4px_rgba(255,255,255,0.5),inset_0px_-3px_5px_rgba(0,0,0,0.4),0px_4px_12px_rgba(157,0,255,0.3)] border border-white/20 overflow-hidden">
+                <img src={businessIcon} alt="Business" className="w-7 h-7 object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate">
@@ -100,7 +112,7 @@ export default function AppLayout() {
 
           {/* Nav - Scrollable Area */}
           <nav className="flex-1 space-y-1.5 overflow-y-auto pr-1 custom-scrollbar">
-            {NAV_ITEMS.map(({ path, label, emoji }) => {
+            {NAV_ITEMS.map(({ path, label, emoji, image }) => {
               const isActive = path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
               return (
                 <Link
@@ -114,13 +126,21 @@ export default function AppLayout() {
                     }`}
                 >
                   <div className={`
-                    relative flex items-center justify-center w-8 h-8 rounded-[10px] transition-all duration-300
+                    relative flex items-center justify-center w-9 h-9 rounded-[10px] transition-all duration-300 overflow-hidden
                     ${isActive 
                       ? 'bg-gradient-to-br from-[#00f3ff] to-[#0051ff] shadow-[inset_0px_2px_4px_rgba(255,255,255,0.6),inset_0px_-3px_5px_rgba(0,0,0,0.4),0px_4px_12px_rgba(0,243,255,0.4)] border border-white/30' 
                       : 'bg-gradient-to-br from-sidebar-accent to-background shadow-[inset_0px_2px_3px_rgba(255,255,255,0.1),inset_0px_-2px_4px_rgba(0,0,0,0.4),0px_3px_6px_rgba(0,0,0,0.2)] border border-white/5 group-hover:shadow-[inset_0px_2px_4px_rgba(255,255,255,0.2),inset_0px_-2px_4px_rgba(0,0,0,0.4),0px_4px_8px_rgba(0,0,0,0.4)]'
                     }
                   `}>
-                    <span className={`text-sm transition-transform duration-300 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>{emoji}</span>
+                    {image ? (
+                      <img 
+                        src={image} 
+                        alt={label} 
+                        className={`w-7 h-7 object-contain transition-transform duration-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] ${isActive ? 'scale-115' : 'group-hover:scale-115'}`} 
+                      />
+                    ) : (
+                      <span className={`text-sm transition-transform duration-300 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>{emoji}</span>
+                    )}
                   </div>
                   {label}
                   {isActive && (
