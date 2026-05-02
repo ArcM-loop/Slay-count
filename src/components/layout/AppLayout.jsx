@@ -69,7 +69,12 @@ export default function AppLayout() {
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors text-left"
             >
               <div className="relative flex items-center justify-center w-9 h-9 rounded-[10px] bg-gradient-to-br from-neon-purple to-[#4a00e0] shadow-[inset_0px_2px_4px_rgba(255,255,255,0.5),inset_0px_-3px_5px_rgba(0,0,0,0.4),0px_4px_12px_rgba(157,0,255,0.3)] border border-white/20 overflow-hidden">
-                <img src={businessIcon} alt="Business" className="w-7 h-7 object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
+                <img 
+                  src={businessIcon} 
+                  alt="Business" 
+                  className="w-7 h-7 object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" 
+                  style={{ mixBlendMode: 'screen', filter: 'brightness(1.1)' }}
+                />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate">
@@ -137,6 +142,7 @@ export default function AppLayout() {
                         src={image} 
                         alt={label} 
                         className={`w-7 h-7 object-contain transition-transform duration-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] ${isActive ? 'scale-115' : 'group-hover:scale-115'}`} 
+                        style={{ mixBlendMode: 'screen', filter: 'brightness(1.1)' }}
                       />
                     ) : (
                       <span className={`text-sm transition-transform duration-300 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>{emoji}</span>
