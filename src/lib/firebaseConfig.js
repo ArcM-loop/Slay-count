@@ -1,18 +1,29 @@
-import { initializeApp } from "firebase/app";
+/**
+ * FIREBASE CONFIG - BRIDGE MODULE
+ * =================================
+ * Single source of truth untuk Firebase ada di GoogleGenerativeAI.js
+ * File ini hanya me-re-export agar import lama tetap bekerja tanpa duplikasi.
+ * 
+ * [BUGFIX] Menghapus initializeApp() duplikat yang menyebabkan crash blank screen.
+ */
+
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g",
-  authDomain: "accountomation.firebaseapp.com",
-  projectId: "accountomation",
-  storageBucket: "accountomation.firebasestorage.app",
-  messagingSenderId: "825422475013",
-  appId: "1:825422475013:web:8cf09b6a53aac97838516c",
-  measurementId: "G-6GR6FE8W90"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-const app = initializeApp(firebaseConfig);
+// ✅ Guard: Hanya inisialisasi jika belum ada app yang berjalan
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
@@ -21,17 +32,15 @@ export const loginWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const idToken = await result.user.getIdToken();
-    
-    // Security Patch #1 & #2: Gunakan credentials: 'include'
+
     const response = await fetch('http://localhost:5000/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),
-      credentials: 'include' // WAJIB untuk mengirim/menerima cookie
+      credentials: 'include'
     });
 
     if (!response.ok) throw new Error("Autentikasi gagal di server");
-
     return await response.json();
   } catch (error) {
     console.error("Login failed:", error);
@@ -54,9 +63,9 @@ export const checkAuthStatus = async () => {
 
 export const logout = async () => {
   try {
-    await fetch('http://localhost:5000/auth/logout', { 
-      method: 'POST', 
-      credentials: 'include' 
+    await fetch('http://localhost:5000/auth/logout', {
+      method: 'POST',
+      credentials: 'include'
     });
     await signOut(auth);
   } catch (e) {
