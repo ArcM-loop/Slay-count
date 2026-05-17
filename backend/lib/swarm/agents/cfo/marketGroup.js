@@ -132,7 +132,7 @@ export const ExpansionScoutAgent = {
  * AGENT M&A Evaluator (Llama-Powered)
  * Focus: Assessing potential mergers or acquisitions.
  */
-export const M&A_EvaluatorAgent = {
+export const MnA_EvaluatorAgent = {
   name: 'M&A_Evaluator',
   tier: 2,
   weight: 1.5,

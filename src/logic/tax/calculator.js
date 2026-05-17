@@ -145,3 +145,117 @@ function calculateProgressiveTax(taxableIncome) {
   }
   return totalTax;
 }
+
+// ─── MISSING EXPORTS (dibutuhkan oleh komponen) ───────────────────────────
+
+/** Alias untuk backward compatibility dengan komponen yang import TAX_RULES */
+export const TAX_RULES = TAX_POLICIES;
+
+/**
+ * Mendeteksi jenis pajak berdasarkan nama akun transaksi.
+ * @param {string} accountName - Nama akun
+ * @param {object} business - Data bisnis aktif
+ * @returns {{ hasPPN: boolean, hasPPh: boolean, pphType: string }}
+ */
+export function detectTaxType(accountName = '', business = {}) {
+  const name = accountName.toLowerCase();
+  const hasPPN = ['pendapatan','penjualan','jasa','persediaan','aset'].some(k => name.includes(k));
+  let pphType = 'none';
+  if (['gaji','upah','tunjangan'].some(k => name.includes(k))) pphType = '21';
+  else if (['jasa','konsultan','sewa'].some(k => name.includes(k))) pphType = '23';
+  return { hasPPN, hasPPh: pphType !== 'none', pphType };
+}
+
+/** Alias calculateTax → calculateSmartTax untuk komponen yang menggunakan nama lama */
+export const calculateTax = calculateSmartTax;
+
+/**
+ * Menghitung estimasi PPh Badan (Tarif 22% x Laba Fiskal).
+ * @param {number} fiscalProfit - Laba fiskal setelah koreksi
+ * @returns {number} Estimasi PPh Badan terutang
+ */
+export function calculatePPhBadan(fiscalProfit) {
+  if (fiscalProfit <= 0) return 0;
+  // Fasilitas pengurangan 50% untuk peredaran bruto <= 4.8M (PP 30/2020)
+  return Math.floor(fiscalProfit * 0.22);
+}
+
+/**
+ * Mengembalikan daftar deadline pelaporan pajak yang akan datang.
+ * @param {object} business - Data bisnis aktif
+ * @returns {Array<{label: string, deadline: string, daysLeft: number}>}
+ */
+export function getUpcomingDeadlines(business = {}) {
+  const today = new Date();
+  const currentMonth = today.getMonth() + 1;
+  const currentYear = today.getFullYear();
+
+  const deadlines = [
+    { label: 'SPT Masa PPh 21', deadline: `${currentYear}-${String(currentMonth).padStart(2,'0')}-20` },
+    { label: 'SPT Masa PPN', deadline: `${currentYear}-${String(currentMonth).padStart(2,'0')}-31` },
+    { label: 'SPT Tahunan Badan', deadline: `${currentYear}-04-30` },
+    { label: 'SPT Tahunan OP', deadline: `${currentYear}-03-31` },
+  ];
+
+  return deadlines.map(d => {
+    const deadlineDate = new Date(d.deadline);
+    const daysLeft = Math.ceil((deadlineDate - today) / (1000 * 60 * 60 * 24));
+    return { ...d, daysLeft, isPast: daysLeft < 0 };
+  }).filter(d => d.daysLeft > -30) // Tampilkan maksimal 30 hari yang lalu
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+}
+
+/** Alias getTaxDeadlines → getUpcomingDeadlines */
+export const getTaxDeadlines = getUpcomingDeadlines;
+
+/**
+ * Menghitung Net PPN (PPN Keluaran - PPN Masukan) dari daftar transaksi.
+ * @param {Array} transactions - Daftar transaksi final
+ * @returns {{ ppnKeluaran: number, ppnMasukan: number, netPPN: number }}
+ */
+export function calculateNetPPN(transactions = []) {
+  const ppnKeluaran = transactions
+    .filter(tx => tx.type === 'Pemasukan' && tx.ppn > 0)
+    .reduce((sum, tx) => sum + (parseFloat(tx.ppn) || 0), 0);
+  
+  const ppnMasukan = transactions
+    .filter(tx => tx.type === 'Pengeluaran' && tx.ppn > 0)
+    .reduce((sum, tx) => sum + (parseFloat(tx.ppn) || 0), 0);
+
+  return { ppnKeluaran, ppnMasukan, netPPN: ppnKeluaran - ppnMasukan };
+}
+
+/**
+ * Merangkum semua PPh yang terpotong/dipungut dari daftar transaksi.
+ * @param {Array} transactions - Daftar transaksi final
+ * @returns {{ PPH_21: object, PPH_23: object, PPH_26: object }}
+ */
+export function calculatePPhSummary(transactions = []) {
+  const summary = {};
+
+  transactions.forEach(tx => {
+    if (!tx.pph_type || tx.pph_type === 'none' || !tx.pph_amount) return;
+    const key = `PPH_${tx.pph_type.replace(/[()]/g, '').toUpperCase()}`;
+    if (!summary[key]) summary[key] = { totalTax: 0, count: 0 };
+    summary[key].totalTax += parseFloat(tx.pph_amount) || 0;
+    summary[key].count += 1;
+  });
+
+  return summary;
+}
+
+/**
+ * Menghitung estimasi PPh Badan dari laba fiskal (22%).
+ * @param {Array} transactions - Daftar transaksi final
+ * @returns {number} Estimasi PPh Badan
+ */
+export function calculateCorporateTax(transactions = []) {
+  const revenue = transactions
+    .filter(tx => tx.type === 'Pemasukan')
+    .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
+  const expense = transactions
+    .filter(tx => tx.type === 'Pengeluaran')
+    .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
+  const fiscalProfit = Math.max(0, revenue - expense);
+  return calculatePPhBadan(fiscalProfit);
+}

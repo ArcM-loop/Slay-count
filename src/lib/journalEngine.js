@@ -112,8 +112,8 @@ import {
   CompetitorPricingAgent, 
   IndustryBenchmarkAgent, 
   ProductLifeCycleAgent, 
-  ExpansionScoutAgent, 
-  M&A_EvaluatorAgent 
+  ExpansionScoutAgent,
+  MnA_EvaluatorAgent
 } from './swarm/agents/cfo/marketGroup';
 import { 
   DividendPolicyAgent, 
@@ -184,7 +184,7 @@ const swarm = new SwarmOrchestrator([
   ScenarioArchitectAgent, BurnRateProphetAgent, ExpansionRiskAgent, DebtCapacityAgent, MarketVolatilityAgent,
   ZeroBasedAuditorAgent, RollingForecastAgent, ScenarioBuilderAgent, CapExPlannerAgent,
   MarketTrendAgent, CompetitorPricingAgent, IndustryBenchmarkAgent, ProductLifeCycleAgent,
-  ExpansionScoutAgent, M&A_EvaluatorAgent, SolvencyWatchAgent, AltmanZScoreAgent,
+  ExpansionScoutAgent, MnA_EvaluatorAgent, SolvencyWatchAgent, AltmanZScoreAgent,
   EnterpriseValueAgent, SensitivityAnalystAgent, ESG_ComplianceAgent, DividendPolicyAgent,
   StrategicExitAgent,
   
@@ -325,6 +325,30 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
   } catch (error) {
     console.error('[JournalEngine] Atomic Transaction Failed ❌:', error);
     throw new Error(`Data Integrity Error: Gagal mencatat jurnal secara aman. Silakan coba lagi. (${error.message})`);
+  }
+}
+
+/**
+ * Menghapus semua entri jurnal yang terkait dengan sebuah transaksi (ATOMIK).
+ * Digunakan saat transaksi diedit atau dibatalkan.
+ * @param {string} transactionId - ID transaksi yang jurnalnya akan dihapus
+ */
+export async function deleteJournalEntries(transactionId) {
+  if (!transactionId) return;
+
+  const { query, where, getDocs, deleteDoc } = await import('firebase/firestore');
+  const journalRef = collection(db, 'journal_entries');
+  const q = query(journalRef, where('transaction_id', '==', transactionId));
+
+  try {
+    const snapshot = await getDocs(q);
+    const deleteBatch = writeBatch(db);
+    snapshot.forEach(docSnap => deleteBatch.delete(docSnap.ref));
+    await deleteBatch.commit();
+    console.log(`[JournalEngine] Deleted ${snapshot.size} journal entries for tx: ${transactionId} ✅`);
+  } catch (error) {
+    console.error('[JournalEngine] Failed to delete journal entries:', error);
+    throw new Error(`Gagal menghapus jurnal: ${error.message}`);
   }
 }
 

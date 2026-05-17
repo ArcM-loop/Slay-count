@@ -279,6 +279,7 @@ export default function EditTransactionModal({ transaction, open, onClose }) {
 
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase text-muted-foreground">Potong PPh</Label>
+                <Select value={form.pph_type} onValueChange={(v) => {
                     let rate = 0;
                     let dppFactor = 1;
                     if (v === '21') {

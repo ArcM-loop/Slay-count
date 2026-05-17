@@ -160,8 +160,6 @@ export default function TaxCenterPage() {
           )}
         </section>
 
-        </section>
-
         {/* PPh Final Validity Countdown (DYNAMIC) */}
         <section className="bento-card bg-purple-500/5 border-purple-500/20">
           <div className="flex items-center justify-between mb-4">

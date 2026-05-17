@@ -83,3 +83,11 @@ export class CoreTaxGenerator {
     document.body.removeChild(link);
   }
 }
+
+/**
+ * Alias fungsi untuk generateCoreTaxXML (digunakan oleh EbupotExportButton).
+ * Wrapper tipis di atas CoreTaxGenerator.generateUnifikasiXML
+ */
+export function generateCoreTaxXML(data, businessInfo) {
+  return CoreTaxGenerator.generateUnifikasiXML(data, businessInfo);
+}

@@ -1,4 +1,4 @@
-import { TAX_RULES } from '@/logic/tax/calculator';
+import { TAX_POLICIES as TAX_RULES } from '@/logic/tax/calculator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Zap } from 'lucide-react';
 
