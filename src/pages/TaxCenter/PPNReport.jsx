@@ -5,13 +5,19 @@ import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { useBusiness } from '@/lib/BusinessContext';
 import { formatRupiah, formatDate } from '@/lib/formatters';
 import { Button } from '@/components/ui/button';
+import { formatNPWP, validateNPWP16 } from '@/lib/formatters';
 import { Loader2, Download, AlertTriangle, CheckCircle, FileSpreadsheet } from 'lucide-react';
 import Papa from 'papaparse';
+import { toast } from 'sonner';
+import { generateCoreTaxXML, downloadCoreTaxXML } from '@/lib/coreTaxEngine';
 
 export default function PPNReport() {
   const { activeBusiness } = useBusiness();
   const [exporting, setExporting] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
+  const [filter, setFilter] = useState('Semua'); // 'Semua', 'Masukan', 'Keluaran'
+  const [exportFormat, setExportFormat] = useState('CSV'); // 'CSV' or 'XML'
+  const businessNpwp = activeBusiness?.npwp || '';
 
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: ['transactions-efaktur', activeBusiness?.id],
@@ -22,8 +28,27 @@ export default function PPNReport() {
   // Memfilter transaksi yang ditandai sebagai e-Faktur atau memiliki nilai PPN.
   // Ini menjadi dasar data yang akan diekspor ke aplikasi DJP.
   const efakturList = useMemo(() => {
-    return transactions.filter(tx => tx.is_efaktur || (tx.ppn && tx.ppn > 0));
-  }, [transactions]);
+    return transactions
+      .filter(t => {
+        const isPPN = t.ppn > 0 || t.tax_type === 'PPN_OUT' || t.tax_type === 'PPN_IN';
+        if (!isPPN) return false;
+        if (filter === 'Keluaran') return t.type === 'Pemasukan' || t.tax_type === 'PPN_OUT';
+        if (filter === 'Masukan') return t.type === 'Pengeluaran' || t.tax_type === 'PPN_IN';
+        return true;
+      })
+      .map(t => {
+        // Gunakan field eksplisit jika ada, jika tidak gunakan kalkulasi legacy
+        const ppn = t.ppn ? parseFloat(t.ppn) : Math.round(Math.abs(t.amount) * 0.11);
+        const dpp = t.dpp ? parseFloat(t.dpp) : Math.round(Math.abs(t.amount));
+        
+        return {
+          ...t,
+          dpp,
+          ppn,
+          isInvalid: !validateNPWP16(t.npwp || businessNpwp),
+        };
+      });
+  }, [transactions, filter, businessNpwp]);
 
   /**
    * Memvalidasi kelengkapan data sebelum ekspor dilakukan.
@@ -36,10 +61,10 @@ export default function PPNReport() {
     efakturList.forEach(tx => {
       const txErrors = [];
 
-      // Validasi NPWP (harus 15 atau 16 digit angka)
+      // Validasi NPWP (Wajib 16 digit untuk CoreTax)
       const npwp = (tx.npwp_lawan || '').replace(/\D/g, '');
-      if (npwp.length !== 15 && npwp.length !== 16) {
-        txErrors.push('NPWP tidak valid (harus 15-16 digit)');
+      if (!validateNPWP16(npwp)) {
+        txErrors.push('NPWP Harus 16 Digit (Standar CoreTax/NIK)');
       }
 
       // Validasi Nomor Faktur (13 digit format standard e-Faktur)
@@ -126,8 +151,63 @@ export default function PPNReport() {
       link.click();
       document.body.removeChild(link);
 
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  /**
+   * Menghasilkan file XML sesuai standar CoreTax DJP (SIAP).
+   * Mendukung NPWP 16 digit dan NITKU.
+   */
+  const handleExportXML = () => {
+    if (!validatePreExport()) return;
+
+    setExporting(true);
+    try {
+      // Kita asumsikan ekspor batch (banyak faktur dalam satu XML jika didukung portal, 
+      // atau per file. Untuk demo, kita buat per transaksi atau struktur batch sederhana)
+      
+      efakturList.forEach((tx, idx) => {
+        // Data Bisnis (Owner)
+        const businessProfile = {
+          npwp16: (activeBusiness?.npwp || '').replace(/\D/g, '').padEnd(16, '0'),
+          nitku: activeBusiness?.nitku || '000000',
+          name: activeBusiness?.name || 'My Business',
+          address: activeBusiness?.address || 'Alamat Perusahaan'
+        };
+
+        // Data Transaksi
+        const coreTaxData = {
+          header: {
+            kodeFaktur: tx.type === 'Pemasukan' ? '010' : '010', // Default normal
+            nomorFaktur: (tx.nomor_faktur || '').replace(/\D/g, ''),
+            tanggalFaktur: new Date(tx.date).toISOString().split('T')[0],
+            masaPajak: String(new Date(tx.date).getMonth() + 1).padStart(2, '0'),
+            tahunPajak: new Date(tx.date).getFullYear()
+          },
+          buyer: {
+            npwp16: (tx.npwp_lawan || '').replace(/\D/g, '').padEnd(16, '0'),
+            nitku: '000000', // Default NITKU pusat
+            name: tx.merchant_name || 'Pelanggan/Vendor',
+            address: "DKI JAKARTA"
+          },
+          items: [
+            {
+              name: tx.description || 'Penyerahan BKP/JKP',
+              price: tx.dpp,
+              quantity: 1
+            }
+          ]
+        };
+
+        const xml = generateCoreTaxXML(coreTaxData, businessProfile);
+        downloadCoreTaxXML(xml, `CoreTax_Faktur_${idx}_${tx.merchant_name.replace(/\s+/g, '_')}`);
+      });
+
+      toast.success("XML CoreTax berhasil diunduh!");
     } catch (e) {
-      console.error('Export e-Faktur Error:', e);
+      console.error('CoreTax Export Error:', e);
     } finally {
       setExporting(false);
     }
@@ -145,12 +225,37 @@ export default function PPNReport() {
           <p className="text-sm text-muted-foreground mt-0.5">Kelola Pajak Pertambahan Nilai (Masukan) dan export ke aplikasi DJP.</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleExportCSV} disabled={exporting || efakturList.length === 0} className="bg-primary text-primary-foreground gap-2">
+          <div className="flex bg-secondary rounded-lg p-1 border border-border">
+            {['CSV', 'XML'].map(fmt => (
+              <button
+                key={fmt}
+                onClick={() => setExportFormat(fmt)}
+                className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${exportFormat === fmt ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {fmt === 'CSV' ? '📄 CSV' : '⚡ XML'}
+              </button>
+            ))}
+          </div>
+          <Button 
+            onClick={exportFormat === 'CSV' ? handleExportCSV : handleExportXML} 
+            disabled={exporting || efakturList.length === 0} 
+            className="bg-primary text-primary-foreground gap-2"
+          >
             {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Export CSV e-Faktur
+            Export {exportFormat}
           </Button>
         </div>
       </motion.div>
+
+      <div className="flex gap-2 mb-2">
+        {['Semua', 'Masukan', 'Keluaran'].map(f => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all
+              ${filter === f ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-secondary text-muted-foreground hover:bg-secondary/80'}`}>
+            {f === 'Masukan' ? '📥 Faktur Masukan' : f === 'Keluaran' ? '📤 Faktur Keluaran' : '📊 Semua Faktur'}
+          </button>
+        ))}
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -211,7 +316,9 @@ export default function PPNReport() {
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDate(tx.date)}</td>
                       <td className="px-4 py-3 font-mono">{tx.nomor_faktur || '-'}</td>
                       <td className="px-4 py-3 font-medium truncate max-w-[150px]" title={tx.merchant_name}>{tx.merchant_name}</td>
-                      <td className="px-4 py-3 font-mono text-xs">{tx.npwp_lawan || '-'}</td>
+                      <td className={`px-4 py-3 font-mono text-xs ${tx.npwp_lawan && !validateNPWP16(tx.npwp_lawan) ? 'text-destructive font-bold' : ''}`}>
+                        {formatNPWP(tx.npwp_lawan)}
+                      </td>
                       <td className="px-4 py-3 text-right">{formatRupiah(tx.dpp || 0)}</td>
                       <td className="px-4 py-3 text-right text-cyber-lime font-semibold">{formatRupiah(tx.ppn || 0)}</td>
                     </tr>
@@ -242,7 +349,7 @@ export default function PPNReport() {
               })}
             </ul>
             <p className="mt-3 text-xs text-muted-foreground">
-              * Aplikasi e-Faktur DJP mewajibkan NPWP/NIK (15 atau 16 digit) dan Nomor Faktur (13 digit) yang lengkap. Silakan edit transaksi di menu Transaksi.
+              * SlayCount kini mengikuti standar **CoreTax DJP**. Seluruh identitas wajib pajak (NPWP) wajib menggunakan 16 digit (NIK atau NPWP format baru).
             </p>
           </motion.div>
         )}

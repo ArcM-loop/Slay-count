@@ -4,11 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { useBusiness } from '@/lib/BusinessContext';
 import { formatRupiah, formatDate, getTypeEmoji } from '@/lib/formatters';
-import { createJournalEntries } from '@/lib/journalEngine';
+import { createJournalEntries, validateJournalWithSwarm } from '@/lib/journalEngine';
+import { logAudit, AUDIT_ACTIONS } from '@/lib/auditTrail';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, CheckCircle, X, Bot, Zap, ShieldAlert } from 'lucide-react';
+import { Loader2, CheckCircle, X, Bot, Zap, ShieldAlert, RefreshCw } from 'lucide-react';
 import ParticleExplosion from '@/components/hud/ParticleExplosion';
 import HudTypewriter from '@/components/hud/HudTypewriter';
 
@@ -18,6 +19,7 @@ export default function Validasi() {
 
     // Autopilot State
     const [isAutopilot, setIsAutopilot] = useState(false);
+    const [duplicates, setDuplicates] = useState(new Set());
     const [showEnableModal, setShowEnableModal] = useState(false);
     const [showDisableModal, setShowDisableModal] = useState(false);
 
@@ -25,6 +27,23 @@ export default function Validasi() {
         const savedState = localStorage.getItem('slaycount_autopilot');
         if (savedState === 'true') setIsAutopilot(true);
     }, []);
+
+    // Cek Duplikat di Inbox
+    useEffect(() => {
+        if (transactions.length > 0) {
+            const potentialDupes = new Set();
+            transactions.forEach((tx, idx) => {
+                const isDupe = transactions.some((other, oIdx) => 
+                    idx !== oIdx && 
+                    other.vendor_name === tx.vendor_name && 
+                    Math.abs(other.amount - tx.amount) < 1 && 
+                    other.date === tx.date
+                );
+                if (isDupe) potentialDupes.add(tx.id);
+            });
+            setDuplicates(potentialDupes);
+        }
+    }, [transactions]);
 
     const handleEnableAutopilot = () => {
         localStorage.setItem('slaycount_autopilot', 'true');
@@ -52,6 +71,17 @@ export default function Validasi() {
 
     const handleFinalize = async (tx, accountId, paymentAccountId) => {
         const account = accounts.find(a => a.id === accountId);
+        
+        // 1. Catat Audit Log (Before-After)
+        await logAudit({
+            action: AUDIT_ACTIONS.UPDATE,
+            entityType: 'TRANSACTION',
+            entityId: tx.id,
+            before: tx,
+            after: { ...tx, status: 'Final', account_id: accountId },
+            reason: 'User validation and finalization'
+        });
+
         await GoogleGenerativeAI.entities.Transaction.update(tx.id, {
             status: 'Final',
             account_id: accountId,
@@ -66,7 +96,21 @@ export default function Validasi() {
     };
 
     const handleReject = async (tx) => {
-        await GoogleGenerativeAI.entities.Transaction.delete(tx.id);
+        // 2. Audit Log untuk Penolakan
+        await logAudit({
+            action: AUDIT_ACTIONS.DELETE,
+            entityType: 'TRANSACTION',
+            entityId: tx.id,
+            before: tx,
+            after: { status: 'Deleted' },
+            reason: 'User rejected transaction from inbox'
+        });
+
+        // 3. SOFT DELETE: Ubah status, jangan hapus fisik
+        await GoogleGenerativeAI.entities.Transaction.update(tx.id, {
+            status: 'Deleted'
+        });
+
         queryClient.invalidateQueries({ queryKey: ['transactions-inbox', activeBusiness?.id] });
     };
 
@@ -118,9 +162,9 @@ export default function Validasi() {
                             <Zap className="w-5 h-5 text-cyber-lime" /> Aktifkan Autopilot?
                         </DialogTitle>
                         <DialogDescription className="text-muted-foreground leading-relaxed pt-2">
-                            <strong>Autopilot Mode</strong> memungkinkan AI SlayCount untuk memproses dan menjurnal nota secara otomatis <strong>100% tanpa sentuhan manusia</strong> jika tingkat keyakinan (Confidence Score) AI di atas 95%.
+                            <strong>Autopilot Mode</strong> memungkinkan <strong>101 Agen Swarm</strong> SlayCount untuk memproses dan menjurnal nota secara otomatis <strong>100% tanpa sentuhan manusia</strong> jika tingkat konsensus Swarm di atas 95% dan tidak ada keberatan dari agen manapun.
                             <br/><br/>
-                            Nota yang membingungkan atau berisiko tinggi (skor {'<'} 95%) akan tetap masuk ke Inbox ini untuk kamu review manual.
+                            Nota yang masih diragukan atau memicu perdebatan antar agen (skor {'<'} 95%) akan tetap masuk ke Inbox ini untuk kamu review manual.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter className="mt-4 flex gap-2 sm:justify-end">
@@ -297,12 +341,19 @@ function ValidationCard({ tx, accounts, onFinalize, onReject, delay }) {
                         <div className="flex items-center gap-2 mb-2">
                             <Bot className="w-4 h-4 text-primary" />
                             <span className="text-xs font-medium text-primary">Biyo AI nebak nih...</span>
-                            {tx.ai_confidence && <span className="text-xs text-muted-foreground ml-auto">{tx.ai_confidence}% yakin</span>}
+                            {tx.swarm_confidence ? (
+                                <span className="text-xs font-bold text-primary ml-auto">🛰️ {tx.swarm_confidence}% (101 Agen)</span>
+                            ) : tx.ai_confidence ? (
+                                <span className="text-xs text-muted-foreground ml-auto">{tx.ai_confidence}% yakin</span>
+                            ) : null}
                         </div>
                         <p className="text-sm font-medium mb-1">
                             "{categoryEmoji(tx.ai_suggested_category)} Ini kayaknya {tx.ai_suggested_category} deh"
                         </p>
-                        {tx.ai_reason && <p className="text-xs text-muted-foreground mb-3">{tx.ai_reason}</p>}
+                        {tx.swarm_objections && (
+                            <p className="text-xs text-amber-400 mb-2">⚠️ {tx.swarm_objections}</p>
+                        )}
+                        {tx.ai_reason && !tx.swarm_objections && <p className="text-xs text-muted-foreground mb-3">{tx.ai_reason}</p>}
                         <div className="flex gap-2">
                             <button
                                 onClick={() => { setAccountId(accounts.find(a => a.name === tx.ai_suggested_category)?.id || ''); setShowAIChip(false); }}
@@ -313,6 +364,23 @@ function ValidationCard({ tx, accounts, onFinalize, onReject, delay }) {
                                 className="flex-1 py-1.5 px-3 rounded-lg bg-secondary text-muted-foreground text-sm hover:bg-secondary/80 transition-colors"
                             >❌ Hmm, bukan deh</button>
                         </div>
+                        {/* Ghost #3 Fix: Swarm Re-Check Button */}
+                        <button
+                            onClick={async () => {
+                                const result = await validateJournalWithSwarm(tx, {});
+                                if (result) {
+                                    await GoogleGenerativeAI.entities.Transaction.update(tx.id, {
+                                        swarm_confidence: result.confidenceScore || 0,
+                                        swarm_verdict: result.isFinal ? 'APPROVED' : 'REVIEW',
+                                        swarm_objections: (result.objections || []).join('; '),
+                                    });
+                                }
+                            }}
+                            className="w-full mt-2 py-1.5 px-3 rounded-lg bg-slate-800/50 text-slate-400 text-xs hover:bg-slate-700/50 hover:text-primary transition-colors flex items-center justify-center gap-1.5 border border-slate-700/50"
+                        >
+                            <RefreshCw className="w-3 h-3" />
+                            🛰️ Swarm Re-Check (101 Agen)
+                        </button>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -412,6 +480,11 @@ function ValidationCard({ tx, accounts, onFinalize, onReject, delay }) {
                         </>
                     ) : (
                         <>
+                            {duplicates.has(tx.id) && (
+                                <Badge variant="destructive" className="bg-red-500/20 text-red-400 border-red-500/30 flex items-center gap-1">
+                                    <AlertCircle className="w-3 h-3" /> POTENSI DUPLIKAT
+                                </Badge>
+                            )}
                             <CheckCircle className="w-3.5 h-3.5" />
                             Finalisasi + Jurnal ✅
                         </>

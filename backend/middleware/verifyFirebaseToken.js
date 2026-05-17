@@ -1,0 +1,46 @@
+/**
+ * verifyFirebaseToken — Express Middleware
+ * ==========================================
+ * Memverifikasi Firebase ID Token dari header Authorization.
+ * Setiap request ke /api/* HARUS melewati middleware ini.
+ *
+ * Flow:
+ *   Browser kirim: Authorization: Bearer <firebase-id-token>
+ *   Middleware verifikasi token ke Firebase Auth
+ *   Inject req.user = { uid, email } untuk dipakai route berikutnya
+ */
+import admin from '../lib/firebaseAdmin.js';
+
+export async function verifyFirebaseToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Authorization header dengan Firebase ID Token wajib disertakan.'
+    });
+  }
+
+  const idToken = authHeader.split('Bearer ')[1];
+
+  try {
+    if (!admin.apps.length) {
+      // Mode development tanpa Firebase Admin
+      console.warn('[AuthMiddleware] Firebase Admin tidak aktif. Bypass untuk dev.');
+      req.user = { uid: 'dev-user', email: 'dev@slaycount.app' };
+      return next();
+    }
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    req.user = { uid: decoded.uid, email: decoded.email };
+    next();
+  } catch (err) {
+    console.error('[AuthMiddleware] Token verification failed:', err.message);
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Token tidak valid atau sudah kedaluwarsa. Silakan login ulang.'
+    });
+  }
+}
+
+module.exports = { verifyFirebaseToken };

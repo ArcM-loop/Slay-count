@@ -1,0 +1,128 @@
+/**
+ * [CVE-2 Fixed by Herta] — Secure AI Proxy Route
+ * ================================================
+ * Semua panggilan ke Gemini API WAJIB melewati endpoint ini.
+ * API Keys Gemini disimpan di server (.env), TIDAK pernah dikirim ke browser.
+ *
+ * Frontend hanya mengirim: { prompt, purpose, temperature, jsonMode }
+ * Backend yang memanggil Gemini dengan key yang aman.
+ */
+
+const express = require('express');
+const router = express.Router();
+const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
+
+// Ambil konfigurasi dari .env (AMAN — tidak pernah terekspos ke browser)
+const API_KEYS = [
+  process.env.GEMINI_API_KEY_PRIMARY,
+  process.env.GEMINI_API_KEY_SECONDARY
+].filter(Boolean);
+
+const MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+// Rate Limiter khusus AI — cegah pengguna menghabiskan kuota
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 jam
+  max: 60, // Maks 60 panggilan AI per jam per IP
+  message: { error: 'Kuota AI Anda habis untuk jam ini. Silakan coba lagi nanti.' }
+});
+
+// Middleware: Verifikasi JWT dari cookie sebelum panggilan AI diizinkan
+function requireAuth(req, res, next) {
+  const token = req.cookies?.slaycount_token;
+  if (!token) return res.status(401).json({ error: 'Sesi tidak ditemukan. Silakan login.' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Sesi tidak valid atau sudah kadaluarsa.' });
+  }
+}
+
+// State Round-Robin untuk load balancing antar key
+let currentKeyIndex = 0;
+function getNextKey() {
+  if (API_KEYS.length === 0) throw new Error('Tidak ada Gemini API Key di server.');
+  const key = API_KEYS[currentKeyIndex];
+  currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+  return key;
+}
+
+/**
+ * POST /api/ai/generate
+ * Endpoint proxy yang aman untuk memanggil Gemini
+ */
+router.post('/generate', requireAuth, aiLimiter, async (req, res) => {
+  const { prompt, purpose = 'worker', temperature = 0.1, jsonMode = true } = req.body;
+
+  if (!prompt || typeof prompt !== 'string' || prompt.length > 20000) {
+    return res.status(400).json({ error: 'Prompt tidak valid atau terlalu panjang.' });
+  }
+
+  let lastError = null;
+  const maxRetries = API_KEYS.length;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const apiKey = getNextKey();
+
+    try {
+      const url = `${GEMINI_API_BASE}/${MODEL}:generateContent?key=${apiKey}`;
+
+      const requestBody = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature,
+          maxOutputTokens: purpose === 'worker' ? 512 : 2048,
+          ...(jsonMode && { responseMimeType: 'application/json' })
+        },
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
+        ]
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        if (response.status === 429) {
+          // Rate limited — coba key berikutnya
+          lastError = new Error('Rate limited');
+          continue;
+        }
+        throw new Error(`Gemini API Error ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      // Parse JSON jika diminta
+      if (jsonMode) {
+        try {
+          return res.json({ result: JSON.parse(text) });
+        } catch {
+          return res.json({ result: { raw: text, parseError: true } });
+        }
+      }
+
+      return res.json({ result: text });
+
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  res.status(502).json({ error: 'Layanan AI tidak tersedia saat ini. Silakan coba lagi.' });
+});
+
+module.exports = router;

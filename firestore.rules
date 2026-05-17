@@ -1,8 +1,93 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    // ═══════════════════════════════════════════════════════════════
+    // HELPER FUNCTIONS
+    // ═══════════════════════════════════════════════════════════════
+
+    // Cek apakah request berasal dari user yang login
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Cek apakah dokumen milik user yang sedang login
+    function isOwner() {
+      return isAuthenticated() && resource.data.user_id == request.auth.uid;
+    }
+
+    // Cek apakah data baru yang akan ditulis punya user_id yang benar
+    function isValidOwner() {
+      return isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // KOLEKSI UTAMA — Akses normal (baca & tulis via client)
+    // ═══════════════════════════════════════════════════════════════
+
+    match /businesses/{docId} {
+      allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isValidOwner();
+      allow update: if isOwner();
+      allow delete: if isOwner();
+    }
+
+    match /transactions/{docId} {
+      allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isValidOwner();
+      allow update: if isOwner();
+      allow delete: if isOwner();
+    }
+
+    match /accounts/{docId} {
+      allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isValidOwner();
+      allow update: if isOwner();
+      allow delete: if isOwner();
+    }
+
+    match /fixed_assets/{docId} {
+      allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isValidOwner();
+      allow update: if isOwner();
+      allow delete: if isOwner();
+    }
+
+    match /purchase_orders/{docId} {
+      allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isValidOwner();
+      allow update: if isOwner();
+      allow delete: if isOwner();
+    }
+
+    match /period_closings/{docId} {
+      allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isValidOwner();
+      // Period closings tidak boleh dihapus atau diubah setelah dibuat
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // JOURNAL ENTRIES — HANYA BISA DIBACA, TIDAK BISA DITULIS DARI CLIENT
+    // Penulisan HANYA dilakukan oleh backend via Firebase Admin SDK
+    // (Admin SDK secara otomatis bypass semua Firestore Rules)
+    // ═══════════════════════════════════════════════════════════════
+    match /journal_entries/{docId} {
+      allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if false;  // DIBLOKIR — hanya server (Admin SDK) yang boleh
+      allow update: if false;  // DIBLOKIR — jurnal tidak boleh diubah setelah dibuat
+      allow delete: if false;  // DIBLOKIR — hanya server yang boleh menghapus
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AUDIT LOGS — APPEND-ONLY, TIDAK BISA DIUBAH ATAU DIHAPUS
+    // ═══════════════════════════════════════════════════════════════
+    match /audit_logs/{docId} {
+      allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if false;  // DIBLOKIR — hanya server yang bisa membuat log
+      allow update: if false;  // DIBLOKIR — log tidak boleh diubah
+      allow delete: if false;  // DIBLOKIR — log tidak boleh dihapus (immutable)
     }
   }
 }

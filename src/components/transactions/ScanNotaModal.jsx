@@ -5,9 +5,10 @@ import { useBusiness } from '@/lib/BusinessContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Upload, Camera, Sparkles, CheckCircle, QrCode } from 'lucide-react';
+import { Loader2, Upload, Camera, Sparkles, CheckCircle, QrCode, ShieldAlert } from 'lucide-react';
 import { formatRupiah } from '@/lib/formatters';
 import { Html5Qrcode } from 'html5-qrcode';
+import { validateJournalWithSwarm } from '@/lib/journalEngine';
 
 const EXPERT_PROMPT = (rawText, accountNames) => `
 Kamu adalah Biyo, akuntan senior berpengalaman 15 tahun yang ahli dalam standar akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP. Kamu memahami konteks bisnis UMKM Indonesia secara mendalam.
@@ -102,7 +103,13 @@ export default function ScanNotaModal({ open, onClose }) {
         const qrResult = await html5QrCode.scanFile(file, false);
         const parsedQR = parseEfakturQR(qrResult);
         if (parsedQR) {
-          setExtracted({ ...parsedQR, receipt_url: url });
+          const existing = await GoogleGenerativeAI.entities.Transaction.filter({
+            business_id: activeBusiness.id,
+            merchant_name: parsedQR.merchant_name,
+            amount: parsedQR.total_amount,
+            date: parsedQR.date
+          });
+          setExtracted({ ...parsedQR, receipt_url: url, isDuplicate: existing.length > 0 });
           setStep('review');
           return; // Skip LLM if valid QR found!
         }
@@ -137,7 +144,16 @@ export default function ScanNotaModal({ open, onClose }) {
         },
       });
 
-      setExtracted({ ...result, receipt_url: file_url });
+      // 4. Cek Duplikat di database
+      const existing = await GoogleGenerativeAI.entities.Transaction.filter({
+          business_id: activeBusiness.id,
+          merchant_name: result.merchant_name,
+          amount: result.total_amount,
+          date: result.date
+      });
+      const isPotentialDuplicate = existing.length > 0;
+
+      setExtracted({ ...result, receipt_url: file_url, isDuplicate: isPotentialDuplicate });
       setStep('review');
     } catch (err) {
       setError('Gagal membaca nota: ' + err.message);
@@ -151,13 +167,10 @@ export default function ScanNotaModal({ open, onClose }) {
     const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id });
     const matchedAccount = accounts.find(a => a.name === extracted.suggested_category);
 
-    // Cek status Autopilot
+    // Ghost #2 Fix: Selalu simpan sebagai 'Inbox' dulu (aman).
+    // Swarm akan memutuskan sendiri apakah layak naik ke 'Final' berdasarkan konsensus 101 agen.
+    // Ini jauh lebih aman daripada mempercayai 1 LLM yang bisa halusinasi.
     const isAutopilot = localStorage.getItem('slaycount_autopilot') === 'true';
-    const isHighConfidence = extracted.confidence >= 95;
-    
-    // Jika Autopilot aktif dan skor tinggi, langsung bypass ke Final
-    const shouldAutopilot = isAutopilot && isHighConfidence && matchedAccount;
-    const finalStatus = shouldAutopilot ? 'Final' : 'Inbox';
 
     const newTx = await GoogleGenerativeAI.entities.Transaction.create({
       business_id: activeBusiness.id,
@@ -166,7 +179,7 @@ export default function ScanNotaModal({ open, onClose }) {
       merchant_name: extracted.merchant_name,
       amount: extracted.total_amount || 0,
       type: extracted.type || 'Pengeluaran',
-      status: finalStatus,
+      status: 'Inbox', // Selalu Inbox dulu — Swarm yang putuskan Final
       source: extracted.is_efaktur ? 'e-Faktur QR' : 'Scan Nota',
       receipt_url: extracted.receipt_url || '',
       ai_suggested_category: extracted.suggested_category,
@@ -181,15 +194,43 @@ export default function ScanNotaModal({ open, onClose }) {
       ppn: extracted.ppn || 0
     });
 
-    if (shouldAutopilot) {
-      // Import secara dinamis agar tidak error sirkular jika ada
-      import('@/lib/journalEngine').then(async ({ createJournalEntries }) => {
-          const paymentAccount = accounts.find(a => a.type === 'Aset'); // Default ambil aset pertama (misal: Kas)
+    // 🛰️ SWARM VALIDATION + SMART AUTOPILOT (Ghost #1 & #2 Fix)
+    // 101 agen bekerja di background, lalu memutuskan sendiri apakah transaksi layak Final.
+    validateJournalWithSwarm(newTx, { business_id: activeBusiness.id })
+      .then(async (swarmResult) => {
+        if (!swarmResult || !newTx.id) return;
+
+        const swarmConfidence = swarmResult.confidenceScore || 0;
+        const hasNoObjections = !swarmResult.objections || swarmResult.objections.length === 0;
+        
+        // Swarm Autopilot: Final hanya jika 101 agen konsensus >= 95% DAN tidak ada keberatan
+        const swarmApprovedAutopilot = isAutopilot && swarmConfidence >= 95 && hasNoObjections && matchedAccount;
+
+        const updatePayload = {
+          swarm_confidence: swarmConfidence,
+          swarm_verdict: swarmResult.isFinal ? 'APPROVED' : 'REVIEW',
+          swarm_objections: (swarmResult.objections || []).join('; '),
+        };
+
+        if (swarmApprovedAutopilot) {
+          // Swarm memberi lampu hijau — upgrade ke Final dan buat jurnal
+          updatePayload.status = 'Final';
+          await GoogleGenerativeAI.entities.Transaction.update(newTx.id, updatePayload);
+
+          const { createJournalEntries } = await import('@/lib/journalEngine');
+          const paymentAccount = accounts.find(a => a.type === 'Aset');
           if (paymentAccount) {
-             await createJournalEntries(newTx, accounts, paymentAccount.id);
+            await createJournalEntries({ ...newTx, status: 'Final' }, accounts, paymentAccount.id);
           }
+        } else {
+          // Swarm tidak yakin — tetap di Inbox untuk review manual
+          await GoogleGenerativeAI.entities.Transaction.update(newTx.id, updatePayload);
+        }
+      })
+      .catch((err) => {
+        // Silent fail — user tidak terganggu, transaksi tetap aman di Inbox
+        console.warn('[ScanNota] Swarm background validation failed:', err.message);
       });
-    }
 
     queryClient.invalidateQueries({ queryKey: ['transactions-inbox', activeBusiness.id] });
     queryClient.invalidateQueries({ queryKey: ['transactions', activeBusiness.id] });
@@ -214,11 +255,17 @@ export default function ScanNotaModal({ open, onClose }) {
       scanner.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText) => {
+        async (decodedText) => {
           const parsed = parseEfakturQR(decodedText);
           if (parsed) {
             scanner.stop();
-            setExtracted(parsed);
+            const existing = await GoogleGenerativeAI.entities.Transaction.filter({
+              business_id: activeBusiness.id,
+              merchant_name: parsed.merchant_name,
+              amount: parsed.total_amount,
+              date: parsed.date
+            });
+            setExtracted({ ...parsed, isDuplicate: existing.length > 0 });
             setStep('review');
           }
         },
@@ -305,6 +352,17 @@ export default function ScanNotaModal({ open, onClose }) {
           {step === 'review' && extracted && (
             <motion.div key="review" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
               {previewUrl && <img src={previewUrl} alt="Nota" className="w-full max-h-36 object-cover rounded-xl" />}
+              
+              {/* Warning Duplikat */}
+              {extracted.isDuplicate && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 animate-pulse">
+                  <ShieldAlert className="w-5 h-5 text-red-400" />
+                  <div>
+                    <p className="text-xs font-bold text-red-400">Peringatan: Nota Duplikat Terdeteksi!</p>
+                    <p className="text-[10px] text-red-400/80">Nota ini sepertinya sudah pernah kamu scan sebelumnya.</p>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 {[

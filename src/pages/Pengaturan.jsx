@@ -20,24 +20,37 @@ import {
   Briefcase, 
   Key,
   Camera,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck,
+  Lock,
+  History,
+  Activity
 } from 'lucide-react';
+import { formatNPWP, validateNPWP16 } from '@/lib/formatters';
 import TutorialChatBot from '@/components/tutorial/TutorialChatBot';
 
 const CATEGORIES = [
   { id: 'profile', label: 'Profil Akun', icon: User },
   { id: 'business', label: 'Detail Bisnis', icon: Briefcase },
   { id: 'notifications', label: 'Notifikasi', icon: Bell },
+  { id: 'compliance', label: 'Kepatuhan & Akuntansi', icon: ShieldCheck },
   { id: 'security', label: 'Keamanan', icon: Shield },
+  { id: 'audit', label: 'Aktivitas', icon: Activity },
 ];
 
 export default function Pengaturan() {
   const { businesses, activeBusiness, setActiveBusiness, refreshBusinesses } = useBusiness();
   const [activeTab, setActiveTab] = useState('profile');
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', industry: '', klu: '' });
+  const [form, setForm] = useState({ name: '', description: '', industry: '', klu: '', npwp: '', nitku: '' });
   const [saving, setSaving] = useState(false);
   const [resetConfirm, setResetConfirm] = useState('');
+
+  const { data: auditLogs = [], isLoading: auditLogsLoading } = useQuery({
+    queryKey: ['audit-logs', activeBusiness?.id],
+    queryFn: () => GoogleGenerativeAI.entities.AuditLog.filter({ business_id: activeBusiness.id }, '-timestamp', 10),
+    enabled: !!activeBusiness
+  });
 
   const handleUpdateBusiness = async (updates) => {
     if (!activeBusiness) return;
@@ -195,13 +208,38 @@ export default function Pengaturan() {
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase text-muted-foreground">NPWP (Opsional)</Label>
+                            <div className="flex justify-between items-center">
+                              <Label className="text-xs font-bold uppercase text-muted-foreground">NPWP (CoreTax Ready)</Label>
+                              {activeBusiness.npwp && !validateNPWP16(activeBusiness.npwp) && (
+                                <span className="text-[10px] text-warm-amber font-bold flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3" /> Wajib 16 Digit
+                                </span>
+                              )}
+                              {activeBusiness.npwp && validateNPWP16(activeBusiness.npwp) && (
+                                <span className="text-[10px] text-cyber-lime font-bold flex items-center gap-1">
+                                  <CheckCircle className="w-3 h-3" /> Valid 16 Digit
+                                </span>
+                              )}
+                            </div>
                             <Input 
                               placeholder="00.000.000.0-000.000"
-                              value={activeBusiness.npwp || ''} 
-                              onChange={e => handleUpdateBusiness({ npwp: e.target.value })}
-                              className="bg-secondary/50 rounded-xl"
+                              value={formatNPWP(activeBusiness.npwp) || ''} 
+                              onChange={e => handleUpdateBusiness({ npwp: e.target.value.replace(/\D/g, '').slice(0, 16) })}
+                              className={`bg-secondary/50 rounded-xl font-mono ${activeBusiness.npwp && !validateNPWP16(activeBusiness.npwp) ? 'border-warm-amber/50 focus:ring-warm-amber' : ''}`}
                             />
+                            <p className="text-[10px] text-muted-foreground italic">Input 16 digit (NIK atau NPWP Baru).</p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase text-muted-foreground">NITKU (22 Digit)</Label>
+                            <Input 
+                              placeholder="0000000000000000000000"
+                              value={activeBusiness.nitku || ''} 
+                              onChange={e => handleUpdateBusiness({ nitku: e.target.value.replace(/\D/g, '').slice(0, 22) })}
+                              className="bg-secondary/50 rounded-xl font-mono"
+                              maxLength={22}
+                            />
+                            <p className="text-[10px] text-muted-foreground italic">Nomor Identitas Tempat Kegiatan Usaha (untuk cabang).</p>
                           </div>
                         </div>
 
@@ -327,6 +365,79 @@ export default function Pengaturan() {
                 </div>
               )}
 
+              {activeTab === 'compliance' && (
+                <div className="space-y-6">
+                  <div className="bento-card">
+                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                      <Lock className="w-5 h-5 text-primary" /> Tutup Buku (Lock Period)
+                    </h2>
+                    <div className="p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-4">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-bold text-amber-600">Penting untuk Akurasi Data</p>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Mengaktifkan Tutup Buku akan mengunci semua transaksi sebelum tanggal yang dipilih. Ini memastikan laporan yang sudah dilaporkan ke pajak tidak berubah secara tidak sengaja.
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase">Kunci Transaksi Sebelum Tanggal:</Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            type="date" 
+                            value={activeBusiness?.lockDate || ''} 
+                            onChange={e => handleUpdateBusiness({ lockDate: e.target.value })}
+                            className="bg-background border-border h-10 rounded-xl"
+                          />
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleUpdateBusiness({ lockDate: null })}
+                            className="rounded-xl"
+                          >
+                            Buka Kunci
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bento-card">
+                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                      <History className="w-5 h-5 text-primary" /> Audit Trail (Jejak Audit)
+                    </h2>
+                    <div className="space-y-3">
+                      {auditLogsLoading ? (
+                        <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">Memuat log...</div>
+                      ) : auditLogs.length === 0 ? (
+                        <div className="p-4 text-center text-xs text-muted-foreground italic border border-dashed border-border rounded-xl">Belum ada aktivitas terekam.</div>
+                      ) : (
+                        auditLogs.slice(0, 5).map(log => (
+                          <div key={log.id} className="flex items-center justify-between p-3 rounded-xl bg-secondary/20 border border-border/50 hover:bg-secondary/30 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-[10px]">
+                                🕵️
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase">{log.action.replace('_', ' ')}</p>
+                                <p className="text-xs font-medium text-white/90">{log.details}</p>
+                              </div>
+                            </div>
+                            <span className="text-[9px] text-muted-foreground font-mono">
+                              {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <Button variant="ghost" className="w-full mt-4 text-[10px] font-bold uppercase tracking-widest text-primary opacity-50 hover:opacity-100">
+                      Lihat Log Lengkap (Pro Mode)
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'security' && (
                 <div className="space-y-6">
                   <div className="bento-card">
@@ -409,6 +520,15 @@ export default function Pengaturan() {
                 value={form.klu} 
                 onChange={e => setForm(f => ({...f, klu: e.target.value}))} 
                 className="bg-secondary border-border rounded-xl" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-muted-foreground uppercase">NPWP (16 Digit)</Label>
+              <Input 
+                placeholder="Masukan 16 digit..." 
+                value={form.npwp} 
+                onChange={e => setForm(f => ({...f, npwp: e.target.value.replace(/\D/g, '').slice(0, 16)}))} 
+                className="bg-secondary border-border rounded-xl font-mono" 
               />
             </div>
             <div className="space-y-2">

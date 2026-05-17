@@ -10,6 +10,25 @@ import { Button } from '@/components/ui/button';
 import { Upload, CheckCircle, AlertCircle, Loader2, Sparkles, ArrowRight, FileSpreadsheet } from 'lucide-react';
 import { parseCSV } from '@/lib/utils';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
+import { z } from 'zod';
+
+// [Security Patch by Herta] - Anti-Formula Injection Sanitizer
+const sanitizeValue = (val) => {
+    if (typeof val !== 'string') return val;
+    // Cegah CSV Injection dengan meng-escape karakter pemicu rumus Excel
+    if (['=', '+', '-', '@'].includes(val.trim().charAt(0))) {
+        return `'${val}`;
+    }
+    return val;
+};
+
+// Skema validasi baris transaksi
+const transactionRowSchema = z.object({
+    date: z.string().min(1),
+    description: z.string().min(1).max(500),
+    amount: z.number().positive(),
+    type: z.enum(['Pemasukan', 'Pengeluaran']),
+});
 
 export default function ImportCSVModal({ open, onClose, businessId, onImportSuccess }) {
     const [file, setFile] = useState(null);
@@ -48,6 +67,13 @@ export default function ImportCSVModal({ open, onClose, businessId, onImportSucc
 
         setFile(selectedFile);
         setError(null);
+
+        // [Security Patch by Herta] - File Size Limit (2MB)
+        if (selectedFile.size > 2 * 1024 * 1024) {
+            setError("File terlalu besar. Maksimal 2MB.");
+            return;
+        }
+
         setAiThinking(true);
         setStep('MAP');
         
@@ -55,8 +81,14 @@ export default function ImportCSVModal({ open, onClose, businessId, onImportSucc
             const data = await parseCSV(selectedFile);
             if (data.length === 0) throw new Error("File CSV kosong.");
             
-            setRawData(data);
-            const extractedHeaders = Object.keys(data[0] || {}).filter(h => h.trim() !== '');
+            // [Security Patch by Herta] - Row Limit (500 rows)
+            const limitedData = data.slice(0, 500);
+            if (data.length > 500) {
+                console.warn("Data dipotong menjadi 500 baris pertama demi keamanan.");
+            }
+            
+            setRawData(limitedData);
+            const extractedHeaders = Object.keys(limitedData[0] || {}).filter(h => h.trim() !== '');
             setHeaders(extractedHeaders);
 
             // SIMULASI AI MEMBACA HEADER (AI Smart Mapper)
@@ -102,12 +134,11 @@ export default function ImportCSVModal({ open, onClose, businessId, onImportSucc
         setError(null);
 
         try {
-            // Map data CSV ke format transaksi SlayCount
+            // Map data CSV ke format transaksi SlayCount dengan Sanitasi
             const transactions = rawData.map(row => {
-                // Bersihkan nominal dari koma/titik jika ada (misal: "50.000,00" -> 50000)
                 let rawAmount = String(row[mapping.amount] || '0').replace(/[^0-9.-]+/g, "");
+                let amount = parseFloat(rawAmount) || 0;
                 
-                // Cek tipe (kalau gak ada mapping tipe, asumsikan pengeluaran)
                 let txType = 'Pengeluaran';
                 if (mapping.type && row[mapping.type]) {
                     const t = String(row[mapping.type]).toLowerCase();
@@ -116,22 +147,27 @@ export default function ImportCSVModal({ open, onClose, businessId, onImportSucc
                     }
                 }
 
-                return {
+                const payload = {
                     business_id: businessId,
                     date: row[mapping.date] || new Date().toISOString().split('T')[0],
-                    description: row[mapping.description] || 'Transaksi Excel',
-                    amount: parseFloat(rawAmount) || 0,
+                    description: sanitizeValue(row[mapping.description] || 'Transaksi Excel'),
+                    amount: amount,
                     type: txType,
-                    status: 'Inbox', // Harus divalidasi manual / AI lagi nanti
+                    status: 'Inbox',
                     source: 'Smart Import Excel',
-                    raw_data: JSON.stringify(row) // Simpan data asli buat jaga-jaga
+                    raw_data: JSON.stringify(row)
                 };
-            });
 
-            // Filter yang kosong
-            const validTransactions = transactions.filter(t => t.amount > 0 && t.description);
+                // Validasi tiap baris dengan Zod
+                const validation = transactionRowSchema.safeParse(payload);
+                return validation.success ? payload : null;
+            }).filter(Boolean); // Buang yang gagal validasi
 
-            await GoogleGenerativeAI.entities.Transaction.bulkCreate(validTransactions);
+            if (transactions.length === 0) {
+                throw new Error("Tidak ada data valid yang bisa diimpor.");
+            }
+
+            await GoogleGenerativeAI.entities.Transaction.bulkCreate(transactions);
             
             onImportSuccess();
             handleClose();

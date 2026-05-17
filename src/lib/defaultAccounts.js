@@ -5,12 +5,17 @@ export const DEFAULT_COA_INDONESIA = [
     { code: '1-1003', name: 'Bank Mandiri', type: 'Aset', sub_type: 'Aset Lancar', is_system: true },
     { code: '1-1004', name: 'Piutang Usaha', type: 'Aset', sub_type: 'Aset Lancar', is_system: true },
     { code: '1-1005', name: 'Persediaan Barang', type: 'Aset', sub_type: 'Aset Lancar', is_system: true },
+    { code: '1-1006', name: 'PPN Masukan', type: 'Aset', sub_type: 'Aset Lancar', is_system: true },
     { code: '1-2001', name: 'Peralatan Kantor', type: 'Aset', sub_type: 'Aset Tetap', is_system: true },
     { code: '1-2002', name: 'Kendaraan', type: 'Aset', sub_type: 'Aset Tetap', is_system: true },
     // KEWAJIBAN
     { code: '2-1001', name: 'Hutang Usaha', type: 'Kewajiban', sub_type: 'Kewajiban Lancar', is_system: true },
     { code: '2-1002', name: 'Hutang Gaji', type: 'Kewajiban', sub_type: 'Kewajiban Lancar', is_system: true },
     { code: '2-1003', name: 'Hutang Pajak', type: 'Kewajiban', sub_type: 'Kewajiban Lancar', is_system: true },
+    { code: '2-1004', name: 'PPN Keluaran', type: 'Kewajiban', sub_type: 'Kewajiban Lancar', is_system: true },
+    { code: '2-1005', name: 'Hutang PPh 21', type: 'Kewajiban', sub_type: 'Kewajiban Lancar', is_system: true },
+    { code: '2-1006', name: 'Hutang PPh 23', type: 'Kewajiban', sub_type: 'Kewajiban Lancar', is_system: true },
+    { code: '2-1007', name: 'Hutang PPh 4(2)', type: 'Kewajiban', sub_type: 'Kewajiban Lancar', is_system: true },
     // EKUITAS
     { code: '3-1001', name: 'Modal Pemilik', type: 'Ekuitas', sub_type: 'Ekuitas', is_system: true },
     { code: '3-1002', name: 'Laba Ditahan', type: 'Ekuitas', sub_type: 'Ekuitas', is_system: true },

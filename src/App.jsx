@@ -13,8 +13,13 @@ const SiklusPage = lazy(() => import('./pages/SiklusAkuntansi'));
 const TaxCenterPage = lazy(() => import('./pages/TaxCenter/TaxDashboard'));
 const PurchaseOrderPage = lazy(() => import('./pages/PurchaseOrder'));
 const AIAccuracyDashboard = lazy(() => import('./pages/AIAccuracyDashboard'));
+const BankReconciliationPage = lazy(() => import('./pages/BankReconciliation'));
 const SettingsPage = lazy(() => import('./pages/Pengaturan'));
+const ManualJournalPage = lazy(() => import('./pages/ManualJournal'));
+const FinancialHealthPage = lazy(() => import('./pages/FinancialHealth'));
 import LoginPage from './pages/Login/LoginPage';
+import { checkAuthStatus } from './lib/firebaseConfig';
+import { useState, useEffect } from 'react';
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -28,11 +33,26 @@ const PageLoader = () => (
 
 // PrivateRoute component untuk memproteksi rute internal
 const PrivateRoute = ({ children }) => {
-  const token = localStorage.getItem('slaycount_session_token');
+  const [authState, setAuthState] = useState({ loading: true, authenticated: false });
   const location = useLocation();
+
+  useEffect(() => {
+    checkAuthStatus().then(res => {
+      setAuthState({ loading: false, authenticated: res.authenticated });
+    });
+  }, []);
   
-  // Jika tidak ada token, langsung arahkan ke login
-  if (!token) {
+  if (authState.loading) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4 text-white">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-sm font-medium animate-pulse">Memverifikasi Sesi Aman...</p>
+      </div>
+    );
+  }
+
+  if (!authState.authenticated) {
+    // Jika tidak terautentikasi di server, redirect ke login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
@@ -113,6 +133,18 @@ function App() {
         <Route path="pengaturan" element={
           <Suspense fallback={<PageLoader />}>
             <SettingsPage />
+          </Suspense>
+        } />
+        
+        <Route path="manual-journal" element={
+          <Suspense fallback={<PageLoader />}>
+            <ManualJournalPage />
+          </Suspense>
+        } />
+
+        <Route path="health" element={
+          <Suspense fallback={<PageLoader />}>
+            <FinancialHealthPage />
           </Suspense>
         } />
       </Route>

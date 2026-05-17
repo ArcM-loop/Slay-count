@@ -12,6 +12,46 @@ import {
   Loader2, Bot, Zap, Clock, Target, TrendingUp,
   CheckCircle, XCircle, Brain
 } from 'lucide-react';
+import { SwarmOffice } from '@/components/swarm/visualizer/SwarmOffice';
+
+const SWARM_AGENTS = [
+  { id: 1, name: "Tax Scout", division: "Tax" },
+  { id: 2, name: "Audit Specialist", division: "Audit" },
+  { id: 3, name: "CFO Analyst", division: "CFO" },
+  { id: 4, name: "Core Ledger", division: "Core" },
+  { id: 5, name: "Fraud Hunter", division: "Audit" },
+  { id: 6, name: "VAT Master", division: "Tax" },
+  { id: 7, name: "UU HPP Scout", division: "Tax" },
+  { id: 8, name: "Consensus Arbitrator", division: "Core" },
+  { id: 101, name: "Recession Survivor", division: "CFO" },
+  { id: 102, name: "Hypergrowth Architect", division: "CFO" },
+  { id: 103, name: "Price-War Strategist", division: "CFO" },
+  { id: 104, name: "Supply Chain Disruptor", division: "CFO" },
+  { id: 105, name: "New Market Scout", division: "CFO" },
+  { id: 106, name: "Product Pivot Analyst", division: "CFO" },
+  { id: 107, name: "Cash-Out Prophet", division: "CFO" },
+  { id: 108, name: "Burn-Rate Watchdog", division: "CFO" },
+  { id: 109, name: "Bad-Debt Detector", division: "CFO" },
+  { id: 110, name: "Tax Penalty Guardian", division: "CFO" },
+  { id: 111, name: "Fraud Pattern Predictor", division: "CFO" },
+  { id: 112, name: "Sustainability Auditor", division: "CFO" },
+  { id: 113, name: "Real-time Valuator", division: "CFO" },
+  { id: 114, name: "Investor Pitch", division: "CFO" },
+  { id: 115, name: "Dividend Optimizer", division: "CFO" },
+  { id: 116, name: "Acquisition Scout", division: "CFO" },
+  { id: 117, name: "ROI Accelerator", division: "CFO" },
+  { id: 118, name: "Inflation Scout", division: "CFO" },
+  { id: 119, name: "Forex Risk", division: "CFO" },
+  { id: 120, name: "Policy Predictor", division: "CFO" },
+  { id: 121, name: "Consumer Trend", division: "CFO" },
+  { id: 122, name: "Executive Judge (CFO)", division: "CFO" },
+  // ... generate 101 agen secara dinamis
+  ...Array.from({ length: 79 }, (_, i) => ({
+    id: i + 9,
+    name: `Agent #${i + 9}`,
+    division: i % 4 === 0 ? "Tax" : i % 4 === 1 ? "Audit" : i % 4 === 2 ? "CFO" : "Core"
+  }))
+];
 
 const COLORS = {
   primary: '#00f3ff',
@@ -151,17 +191,25 @@ export default function AIAccuracyDashboard() {
 
   return (
     <div className="p-4 lg:p-6 space-y-5 max-w-6xl mx-auto">
-      {/* Header */}
+      {/* Swarm Command Center Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-neon-purple flex items-center justify-center">
-            <Brain className="w-5 h-5 text-primary-foreground" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-neon-purple flex items-center justify-center shadow-lg shadow-primary/20">
+              <Brain className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-black bg-gradient-to-r from-primary via-cyan-400 to-neon-purple bg-clip-text text-transparent uppercase tracking-tighter">
+                SWARM COMMAND CENTER
+              </h1>
+              <p className="text-sm text-muted-foreground font-medium">
+                Monitoring 79 Specialized MiroFish-v3 Agents in Real-time
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">Performa Biyo AI 🤖</h1>
-            <p className="text-sm text-muted-foreground">
-              Seberapa pintar Biyo bekerja untukmu bulan ini
-            </p>
+          <div className="flex items-center gap-3 bg-slate-900/80 backdrop-blur p-2.5 px-4 rounded-2xl border border-primary/20 shadow-inner">
+            <div className="w-3 h-3 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(0,243,255,0.8)]" />
+            <span className="text-xs font-mono text-primary uppercase tracking-widest font-bold">Live Consensus Active</span>
           </div>
         </div>
       </motion.div>
@@ -172,26 +220,31 @@ export default function AIAccuracyDashboard() {
         <EmptyState />
       ) : (
         <>
-          {/* Biyo Quote */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+          {/* VISUALIZING THE INVISIBLE: THE OFFICE */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="p-4 rounded-xl bg-gradient-to-r from-primary/5 to-neon-purple/5 border border-primary/20"
+            className="w-full"
+          >
+            <SwarmOffice agents={SWARM_AGENTS} />
+          </motion.div>
+
+          {/* Swarm Insight Update */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 1 }}
+            className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm"
           >
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 border border-primary/20">
                 <Bot className="w-4 h-4 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-primary">Biyo AI</p>
-                <p className="text-sm text-muted-foreground mt-0.5">
+                <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1">Swarm Intelligence Briefing 🛰️</p>
+                <p className="text-sm text-slate-300 leading-relaxed">
                   {metrics.autopilotRate >= 80
-                    ? `"Bos, bulan ini ${metrics.autopilotRate}% nota aku selesaiin sendiri tanpa ganggu kamu. Aku makin pinter nih! 😎"`
-                    : metrics.autopilotRate >= 50
-                    ? `"Udah lumayan nih Bos, ${metrics.autopilotRate}% nota aku handle sendiri. Masih belajar terus ya!"`
-                    : metrics.totalProcessed > 0
-                    ? `"Aku baru mulai belajar nih Bos. Makin banyak nota yang masuk, makin pinter aku nanti! 💪"`
-                    : `"Halo Bos! Belum ada nota yang masuk nih. Scan nota pertamamu yuk!"`
+                    ? `Goks! Konsensus MiroFish lagi gacor banget. ${metrics.autopilotRate}% nota lo udah gue beresin autopilot tanpa drama. No cap, pembukuan lo rapi banget bulan ini! Slay terus! 💅✨`
+                    : `Sistem lagi sinkronisasi pola nih, Bos. Baru ${metrics.autopilotRate}% otonomi tercapai. Sabar ya, pasukan Swarm gue lagi belajar gaya bisnis lo biar makin sat-set! Gas! 🚀`
                   }
                 </p>
               </div>
@@ -202,34 +255,34 @@ export default function AIAccuracyDashboard() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
               icon={<Target className="w-5 h-5" />}
-              label="Akurasi Rata-rata"
+              label="Trust Score (Swarm)"
               value={`${metrics.avgConfidence}%`}
               accent={metrics.avgConfidence >= 90 ? 'text-cyber-lime' : metrics.avgConfidence >= 70 ? 'text-amber-400' : 'text-destructive'}
-              detail={metrics.avgConfidence >= 90 ? 'Sangat Akurat' : metrics.avgConfidence >= 70 ? 'Cukup Baik' : 'Perlu Pelatihan'}
+              detail={metrics.avgConfidence >= 90 ? 'Gacor Parah! 🔥' : metrics.avgConfidence >= 70 ? 'Lumayan Lah' : 'Perlu Vibe Check ⚠️'}
               delay={0}
             />
             <StatCard
               icon={<Zap className="w-5 h-5" />}
-              label="Tingkat Otonomi"
+              label="Autopilot Energy"
               value={`${metrics.autopilotRate}%`}
               accent="text-primary"
-              detail={`${metrics.autopilotCount} dari ${metrics.autopilotCount + metrics.manualCount} nota`}
+              detail={`Berhasil beresin ${metrics.autopilotCount} nota! Gas pol! 🚀`}
               delay={0.05}
             />
             <StatCard
               icon={<Clock className="w-5 h-5" />}
-              label="Waktu Dihemat"
+              label="Free Time Gained"
               value={timeSavedHours > 0 ? `${timeSavedHours} jam` : `${timeSavedMins} mnt`}
               accent="text-neon-purple"
-              detail={timeSavedHours > 0 ? `${timeSavedMins} menit tambahan` : `dari ${metrics.autopilotCount} nota otomatis`}
+              detail={timeSavedHours > 0 ? `Bisa rebahan ${timeSavedHours} jam! 💤` : `Waktu lo gak kebuang sia-sia!`}
               delay={0.1}
             />
             <StatCard
               icon={<XCircle className="w-5 h-5" />}
-              label="Koreksi Manual"
+              label="Human Tweak Count"
               value={metrics.correctedCount}
               accent="text-amber-400"
-              detail="kategori yang diubah user"
+              detail={metrics.correctedCount > 0 ? "Kena spill user dikit" : "No cap, gue bener semua! 💅"}
               delay={0.15}
             />
           </div>

@@ -11,9 +11,10 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const PPH_GROUPS = [
-  { key: 'PPH_21', label: 'PPh 21', sub: 'Gaji & Upah', color: '#a855f7', colorClass: 'text-neon-purple' },
-  { key: 'PPH_23_JASA', label: 'PPh 23 Jasa', sub: 'Imbalan jasa', color: '#00f3ff', colorClass: 'text-[#00f3ff]' },
-  { key: 'PPH_23_DIVIDEN', label: 'PPh 23 Dividen', sub: 'Pembagian dividen', color: '#00f3ff', colorClass: 'text-[#00f3ff]' },
+  { key: 'PPH_21', label: 'PPh 21', sub: 'Domestik (Pegawai/Ahli)', color: '#a855f7', colorClass: 'text-neon-purple' },
+  { key: 'PPH_26', label: 'PPh 26', sub: 'Luar Negeri (Flat 20%)', color: '#f43f5e', colorClass: 'text-rose-500' },
+  { key: 'PPH_23_JASA', label: 'PPh 23 Jasa', sub: 'Imbalan jasa (2%)', color: '#00f3ff', colorClass: 'text-[#00f3ff]' },
+  { key: 'PPH_23_DIVIDEN', label: 'PPh 23 Dividen', sub: 'Dividen (15%)', color: '#00f3ff', colorClass: 'text-[#00f3ff]' },
   { key: 'PPH_4_2_SEWA', label: 'PPh 4(2) Sewa', sub: 'Sewa bangunan (10%)', color: '#f59e0b', colorClass: 'text-warm-amber' },
   { key: 'PPH_4_2_KONSTRUKSI', label: 'PPh 4(2) Konstruksi', sub: 'Jasa konstruksi (2%)', color: '#f59e0b', colorClass: 'text-warm-amber' },
 ];
@@ -21,6 +22,7 @@ const PPH_GROUPS = [
 export default function PPhReport() {
   const { activeBusiness } = useBusiness();
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [exportFormat, setExportFormat] = useState('CSV'); // 'CSV' or 'XML'
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: ['transactions', activeBusiness?.id],
     // 2. base44 diganti jadi GoogleGenerativeAI di sini
@@ -32,7 +34,7 @@ export default function PPhReport() {
     const monthTx = transactions.filter(t =>
       t.status === 'Final' &&
       t.date?.startsWith(selectedMonth) &&
-      ['PPH_21', 'PPH_23_JASA', 'PPH_23_DIVIDEN', 'PPH_4_2_SEWA', 'PPH_4_2_KONSTRUKSI'].includes(t.tax_type)
+      ['PPH_21', 'PPH_26', 'PPH_23_JASA', 'PPH_23_DIVIDEN', 'PPH_4_2_SEWA', 'PPH_4_2_KONSTRUKSI'].includes(t.tax_type)
     );
 
     const byGroup = {};
@@ -41,11 +43,12 @@ export default function PPhReport() {
     });
 
     const total21 = byGroup.PPH_21.reduce((s, t) => s + (t.tax_amount || 0), 0);
+    const total26 = byGroup.PPH_26.reduce((s, t) => s + (t.tax_amount || 0), 0);
     const total23 = [...byGroup.PPH_23_JASA, ...byGroup.PPH_23_DIVIDEN].reduce((s, t) => s + (t.tax_amount || 0), 0);
     const total42 = [...byGroup.PPH_4_2_SEWA, ...byGroup.PPH_4_2_KONSTRUKSI].reduce((s, t) => s + (t.tax_amount || 0), 0);
-    const totalAll = total21 + total23 + total42;
+    const totalAll = total21 + total26 + total23 + total42;
 
-    return { byGroup, total21, total23, total42, totalAll, allPPh: monthTx };
+    return { byGroup, total21, total26, total23, total42, totalAll, allPPh: monthTx };
   }, [transactions, selectedMonth]);
 
   if (!activeBusiness) return null;
@@ -67,9 +70,21 @@ export default function PPhReport() {
             onChange={e => setSelectedMonth(e.target.value)}
             className="px-3 py-1.5 rounded-xl bg-secondary border border-border text-sm text-foreground"
           />
+          <div className="flex bg-secondary rounded-xl p-1 border border-border">
+            {['CSV', 'XML'].map(fmt => (
+              <button
+                key={fmt}
+                onClick={() => setExportFormat(fmt)}
+                className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${exportFormat === fmt ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {fmt}
+              </button>
+            ))}
+          </div>
           <EbupotExportButton
             data={pphData.allPPh}
-            filename={`eBupot_PPh_${selectedMonth}_${activeBusiness?.name}.csv`}
+            format={exportFormat}
+            filename={`eBupot_PPh_${exportFormat}_${selectedMonth}_${activeBusiness?.name}.${exportFormat.toLowerCase()}`}
           />
         </div>
       </motion.div>

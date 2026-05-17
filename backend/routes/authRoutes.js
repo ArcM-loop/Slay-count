@@ -4,66 +4,69 @@ const admin = require('firebase-admin');
 const { z } = require('zod');
 const jwt = require('jsonwebtoken');
 
-// Inisialisasi Firebase Admin jika environment valid
 if (!admin.apps.length && process.env.FIREBASE_PROJECT_ID) {
   try {
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        // Handle newline characters properly
         privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
       })
     });
   } catch (e) {
-    console.error('Firebase Admin init failed. Please check your credentials.', e.message);
+    console.error('Firebase Admin init failed:', e.message);
   }
 }
 
-// (4) Input Sanitization menggunakan Zod
 const loginSchema = z.object({
-  idToken: z.string().min(10, "Token tidak valid").trim(),
+  idToken: z.string().min(10).trim(),
 });
 
-// Endpoint untuk verifikasi token dari client dan generate session JWT
+// Endpoint untuk login dan menyimpan token di HttpOnly Cookie
 router.post('/login', async (req, res) => {
   try {
-    // Sanitasi dan validasi input
     const parsed = loginSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.format() });
-    }
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.format() });
 
     const { idToken } = parsed.data;
+    if (!admin.apps.length) return res.status(500).json({ error: 'Firebase Admin not configured' });
 
-    // Untuk environment test/development di mana Firebase tidak di set-up:
-    if (!admin.apps.length) {
-      return res.status(500).json({ error: 'Firebase Admin belum dikonfigurasi di server.' });
-    }
-
-    // Verifikasi token dari Firebase
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const uid = decodedToken.uid;
     const email = decodedToken.email;
 
-    // (5) JWT Management dengan masa berlaku aman
-    // Generate JWT server kita sendiri untuk session management
-    const sessionToken = jwt.sign(
-      { uid, email }, 
-      process.env.JWT_SECRET, 
-      { expiresIn: '1h' } // Masa berlaku 1 jam yang aman
-    );
+    const sessionToken = jwt.sign({ uid, email }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    res.json({
-      message: 'Login berhasil',
-      token: sessionToken,
-      user: { uid, email }
+    // Security Patch #1: Simpan di HttpOnly Cookie
+    res.cookie('slaycount_token', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 3600000 // 1 jam
     });
 
+    res.json({ message: 'Login sukses', user: { uid, email } });
   } catch (error) {
-    console.error('Error during authentication:', error);
-    res.status(401).json({ error: 'Autentikasi gagal atau token tidak valid' });
+    res.status(401).json({ error: 'Autentikasi gagal' });
   }
+});
+
+// Security Patch: Endpoint untuk verifikasi status login (karena JS tidak bisa baca cookie)
+router.get('/verify', (req, res) => {
+  const token = req.cookies.slaycount_token;
+  if (!token) return res.status(401).json({ authenticated: false });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    res.json({ authenticated: true, user: decoded });
+  } catch (e) {
+    res.status(401).json({ authenticated: false });
+  }
+});
+
+router.post('/logout', (req, res) => {
+  res.clearCookie('slaycount_token');
+  res.json({ message: 'Logged out' });
 });
 
 module.exports = router;

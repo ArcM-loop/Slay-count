@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { useBusiness } from '@/lib/BusinessContext';
-import { computeAccountBalances } from '@/lib/journalEngine';
+import { computeAccountBalances } from '@/lib/ledgerEngine';
 import { formatRupiah } from '@/lib/formatters';
 import { Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -26,7 +26,16 @@ export default function TrialBalance() {
     enabled: !!activeBusiness,
   });
 
-  const balances = useMemo(() => computeAccountBalances(entries), [entries]);
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts', activeBusiness?.id],
+    queryFn: () => GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id }),
+    enabled: !!activeBusiness,
+  });
+
+  const balances = useMemo(() => {
+    const rawBalances = computeAccountBalances(entries, accounts);
+    return Object.values(rawBalances);
+  }, [entries, accounts]);
 
   const grouped = useMemo(() => {
     return TYPE_ORDER.reduce((acc, type) => {
@@ -77,9 +86,9 @@ export default function TrialBalance() {
               <p className={`text-xs font-bold mb-1.5 ${TYPE_COLOR[type]}`}>{TYPE_EMOJI[type]} {type}</p>
               {list.map(b => (
                 <div key={b.account_id} className="grid grid-cols-4 text-xs py-1 px-2 hover:bg-secondary/40 rounded-lg transition-colors">
-                  <span className="col-span-2 truncate text-foreground">{b.account_name}</span>
-                  <span className="text-right text-cyber-lime">{b.total_debit > 0 ? formatRupiah(b.total_debit) : '—'}</span>
-                  <span className="text-right text-destructive">{b.total_credit > 0 ? formatRupiah(b.total_credit) : '—'}</span>
+                  <span className="col-span-2 truncate text-foreground">{b.name}</span>
+                  <span className="text-right text-cyber-lime">{b.debit > 0 ? formatRupiah(b.debit) : '—'}</span>
+                  <span className="text-right text-destructive">{b.credit > 0 ? formatRupiah(b.credit) : '—'}</span>
                 </div>
               ))}
             </div>

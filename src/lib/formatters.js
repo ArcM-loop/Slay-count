@@ -1,3 +1,21 @@
+export function formatNPWP(val) {
+    if (!val) return '-';
+    const clean = val.replace(/\D/g, '');
+    if (clean.length === 16) {
+        return `${clean.slice(0, 2)}.${clean.slice(2, 5)}.${clean.slice(5, 8)}.${clean.slice(8, 9)}-${clean.slice(9, 12)}.${clean.slice(12, 16)}`;
+    }
+    if (clean.length === 15) {
+        return `${clean.slice(0, 2)}.${clean.slice(2, 5)}.${clean.slice(5, 8)}.${clean.slice(8, 9)}-${clean.slice(9, 12)}.${clean.slice(12, 15)}`;
+    }
+    return clean;
+}
+
+export function validateNPWP16(val) {
+    if (!val) return false;
+    const clean = val.replace(/\D/g, '');
+    return clean.length === 16;
+}
+
 export function formatRupiah(amount) {
     if (amount === null || amount === undefined) return 'Rp 0';
     return new Intl.NumberFormat('id-ID', {
@@ -35,6 +53,7 @@ export function getStatusColor(status) {
         Inbox: 'text-warm-amber border-yellow-500/30 bg-yellow-500/10',
         Divalidasi: 'text-primary border-primary/30 bg-primary/10',
         Final: 'text-cyber-lime border-green-500/30 bg-green-500/10',
+        Void: 'text-destructive opacity-50 border-destructive/20 bg-destructive/5',
     };
     return map[status] || 'text-muted-foreground border-border bg-muted';
 }

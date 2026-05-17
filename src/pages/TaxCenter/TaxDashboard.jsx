@@ -13,6 +13,7 @@ import {
   calculatePPhSummary, 
   getTaxDeadlines, 
   calculateCorporateTax, 
+  evaluateTaxPolicy,
   TAX_RULES 
 } from '../../logic/tax/calculator.js';
 import { calculateFiscalCorrection } from '../../logic/tax/fiscalRules.js';
@@ -105,9 +106,9 @@ export default function TaxCenterPage() {
           color="cyan" 
         />
         <TaxKpiCard 
-          label="PPH 21 TERPOTONG" 
-          amount={pphData.PPH_21?.totalTax || 0} 
-          sub="Total potongan gaji" 
+          label="PPH 21/26 TERPOTONG" 
+          amount={(pphData.PPH_21?.totalTax || 0) + (pphData.PPH_26?.totalTax || 0)} 
+          sub="Potongan Domestik & LN" 
           color="purple" 
         />
         <TaxKpiCard 
@@ -124,35 +125,77 @@ export default function TaxCenterPage() {
         />
       </div>
 
-      {/* PKP Status Section */}
-      <section className="bento-card bg-card/40 border-border/50">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🏪</span>
-            <div>
-              <h3 className="font-bold">Status PKP (Pengusaha Kena Pajak)</h3>
-              <p className="text-xs text-muted-foreground">Batas omzet wajib PKP: Rp 4.800.000.000/tahun</p>
+      {/* Tax Incentives (UU HPP 500M) & PKP Status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 500M Tracker for OP */}
+        <section className="bento-card bg-primary/5 border-primary/20">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🎁</span>
+              <div>
+                <h3 className="font-bold text-primary">Jatah Bebas Pajak (UU HPP)</h3>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Khusus UMKM Orang Pribadi</p>
+              </div>
+            </div>
+            <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${currentOmzet < 500000000 ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'}`}>
+              {currentOmzet < 500000000 ? 'BEBAS PAJAK' : 'WAJIB BAYAR 0.5%'}
             </div>
           </div>
-          <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${isPkp ? 'bg-destructive/10 text-destructive' : 'bg-cyber-lime/10 text-cyber-lime'}`}>
-            {isPkp ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-            {isPkp ? 'Wajib PKP' : 'Di Bawah PKP'}
+          
+          <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min((currentOmzet / 500000000) * 100, 100)}%` }}
+              className="absolute top-0 left-0 h-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"
+            />
           </div>
-        </div>
-        
-        <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: `${pkpPercentage}%` }}
-            className={`absolute top-0 left-0 h-full ${isPkp ? 'bg-destructive' : 'bg-primary'}`}
-          />
-        </div>
-        <div className="flex justify-between mt-2 text-[10px] text-muted-foreground font-medium">
-          <span>{formatRupiah(currentOmzet)} (saat ini)</span>
-          <span>{pkpPercentage.toFixed(1)}%</span>
-          <span>Sisa {formatRupiah(Math.max(0, pkpLimit - currentOmzet))}</span>
-        </div>
-      </section>
+          <div className="flex justify-between mt-2 text-[10px] text-muted-foreground font-medium">
+            <span>{formatRupiah(currentOmzet)}</span>
+            <span>Rp 500.000.000</span>
+          </div>
+          {currentOmzet < 500000000 && (
+            <p className="mt-3 text-[10px] text-green-600 italic font-medium">
+              * Anda masih memiliki jatah bebas pajak sebesar {formatRupiah(500000000 - currentOmzet)} tahun ini.
+            </p>
+          )}
+        </section>
+
+        </section>
+
+        {/* PPh Final Validity Countdown (DYNAMIC) */}
+        <section className="bento-card bg-purple-500/5 border-purple-500/20">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⏳</span>
+              <div>
+                <h3 className="font-bold text-purple-400">Masa Berlaku PPh Final</h3>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Berdasarkan PP 55/2022</p>
+              </div>
+            </div>
+            <div className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-400">
+              {activeBusiness?.entityType || 'ENTITAS'}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              {(() => {
+                const policy = evaluateTaxPolicy(activeBusiness || {}, currentOmzet);
+                return (
+                  <>
+                    <p className="text-2xl font-black text-foreground">
+                      {policy.useFinal ? `Sisa ${policy.yearsRemaining} Tahun` : 'Sudah Habis'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                      {policy.alert || "* Setelah masa ini berakhir, Anda wajib beralih ke Tarif Normal Pasal 17."}
+                    </p>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </section>
+      </div>
 
       {/* Bento Grid Main */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -176,6 +219,13 @@ export default function TaxCenterPage() {
           subtitle="Koreksi fiskal otomatis"
           onClick={() => setActiveView('fiscal')}
           color="green"
+        />
+        <BentoTaxCard 
+          emoji="📉"
+          title="The Big 3 Reports"
+          subtitle="Neraca, Laba Rugi, Arus Kas"
+          onClick={() => window.location.href = '/reports'}
+          color="amber"
         />
       </div>
 
@@ -216,27 +266,39 @@ export default function TaxCenterPage() {
         {/* Deadlines Section */}
         <div className="space-y-4">
           <h3 className="flex items-center gap-2 font-bold text-lg">
-            <Clock className="w-5 h-5 text-primary" /> Deadline Pajak
+            <Clock className="w-5 h-5 text-primary" /> Tracker Kalender Pajak
           </h3>
           <div className="space-y-3">
             {deadlines.map(d => (
-              <div key={d.id} className="flex items-center justify-between p-4 bg-card/30 border border-border/40 rounded-xl hover:bg-card/50 transition-colors group">
+              <div key={d.id} className="flex items-center justify-between p-4 bg-card/30 border border-border/40 rounded-xl hover:bg-card/50 transition-all group relative overflow-hidden">
+                {d.isOverdue && <div className="absolute top-0 left-0 w-1 h-full bg-destructive" />}
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${d.isOverdue ? 'border-destructive/30 bg-destructive/10' : 'border-cyber-lime/30 bg-cyber-lime/10'}`}>
-                    {d.isOverdue ? <AlertTriangle className="w-4 h-4 text-destructive" /> : <CheckCircle2 className="w-4 h-4 text-cyber-lime" />}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border text-xl ${d.isOverdue ? 'border-destructive/30 bg-destructive/10' : 'border-primary/20 bg-primary/5'}`}>
+                    {d.emoji}
                   </div>
                   <div>
                     <h4 className="text-sm font-bold">{d.name}</h4>
-                    <p className="text-[10px] text-muted-foreground">Batas lapor bulan sebelumnya</p>
+                    <p className="text-[10px] text-muted-foreground">{d.desc}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className={`text-[10px] font-bold ${d.isOverdue ? 'text-destructive' : 'text-muted-foreground'}`}>
-                    {d.isOverdue ? 'TERLAMBAT' : `${d.daysLeft} hari lagi`}
-                  </span>
+                  <div className={`text-xs font-black ${d.isOverdue ? 'text-destructive' : 'text-primary'}`}>
+                    {d.isOverdue ? 'TERLAMBAT' : d.daysLeft === 0 ? 'HARI INI' : `${d.daysLeft} Hari Lagi`}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {d.deadline.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                  </p>
                 </div>
               </div>
             ))}
+          </div>
+          <div className="p-4 rounded-xl bg-cyber-lime/10 border border-cyber-lime/20">
+            <p className="text-[10px] font-bold text-cyber-lime uppercase tracking-widest flex items-center gap-2">
+              <ShieldCheck className="w-3 h-3" /> Tips Kepatuhan
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+              Gunakan fitur <b>Export XML Unifikasi</b> untuk lapor pajak lebih cepat lewat portal CoreTax DJP.
+            </p>
           </div>
         </div>
       </div>
@@ -279,6 +341,7 @@ function BentoTaxCard({ emoji, title, subtitle, onClick, color }) {
     cyan: 'text-cyan-400',
     purple: 'text-purple-400',
     green: 'text-emerald-400',
+    amber: 'text-amber-400',
   };
 
   return (

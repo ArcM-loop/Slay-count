@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBusiness } from '@/lib/BusinessContext';
 import {
   LayoutDashboard, ArrowLeftRight, BookOpen, BarChart3, ShieldCheck, Settings,
-  ChevronDown, Plus, Zap, Menu, X, RotateCcw, Landmark, BookOpenCheck
+  ChevronDown, Plus, Zap, Menu, X, RotateCcw, Landmark, BookOpenCheck, BrainCircuit
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddTransactionModal from '@/components/transactions/AddTransactionModal';
@@ -29,6 +29,8 @@ const NAV_ITEMS = [
   { path: '/validasi', label: 'Validasi', icon: ShieldCheck, emoji: '✅', image: validationIcon },
   { path: '/siklus', label: 'Siklus', icon: RotateCcw, emoji: '♻️' }, // Siklus tetep pake emote biasa
   { path: '/purchase-order', label: 'Purchase Order', icon: BookOpen, emoji: '📦', image: poIcon },
+  { path: '/manual-journal', label: 'Jurnal Manual', icon: BookOpenCheck, emoji: '✍️' },
+  { path: '/health', label: 'Financial Health', icon: BrainCircuit, emoji: '🧠' },
   { path: '/tax', label: 'Tax Center', icon: Landmark, emoji: '🏛️', image: taxIcon },
   { path: '/ai-dashboard', label: 'Biyo AI', icon: Zap, emoji: '🤖', image: aiIcon },
   { path: '/pengaturan', label: 'Pengaturan', icon: Settings, emoji: '⚙️', image: settingsIcon },
@@ -160,8 +162,12 @@ export default function AppLayout() {
 
           {/* Bottom */}
           <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-primary/10 to-neon-purple/10 border border-primary/20">
-            <p className="text-xs text-muted-foreground">✨ Powered by AI</p>
-            <p className="text-xs font-medium text-primary mt-0.5">Slay Count v1.0</p>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <p className="text-[10px] uppercase tracking-wider font-bold text-primary">MiroFish Swarm Active</p>
+            </div>
+            <p className="text-xs text-muted-foreground italic">"25 Micro-Agents Validating"</p>
+            <p className="text-[10px] text-muted-foreground/60 mt-1">Core: {import.meta.env.VITE_GEMINI_MODEL_DISPLAY || 'Gemini 3 Flash'}</p>
           </div>
         </div>
       </aside>

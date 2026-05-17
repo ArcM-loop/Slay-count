@@ -4,14 +4,19 @@ import { Download, AlertCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { validateTaxData, mapToEbupotFormat, generateEbupotCSV } from '@/utils/taxExportHelper';
 import { downloadCSV } from '@/logic/tax/exportFormatter';
+import { generateCoreTaxXML } from '@/logic/tax/coreTaxGenerator';
+import { ExportSwarm } from '@/lib/swarm/exportOrchestrator';
+import { toast } from 'sonner';
+import { useBusiness } from '@/lib/BusinessContext';
 import HudTypewriter from '@/components/hud/HudTypewriter';
 
-export default function EbupotExportButton({ data = [], filename, disabled = false }) {
+export default function EbupotExportButton({ data = [], filename, disabled = false, format = 'CSV' }) {
+  const { activeBusiness } = useBusiness();
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
   const [glitching, setGlitching] = useState(false);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const validation = validateTaxData(data);
 
     if (!validation.isValid) {
@@ -22,6 +27,39 @@ export default function EbupotExportButton({ data = [], filename, disabled = fal
         setShowErrorModal(true);
       }, 300);
       return;
+    }
+
+    if (format === 'XML') {
+      try {
+        // 1. Jalankan Audit Swarm sebelum Export
+        const swarmPayload = {
+          type: 'XML_CORETAX',
+          business_npwp: activeBusiness?.npwp,
+          dataCount: data.length,
+          summary: { totalAmount: data.reduce((sum, t) => sum + (t.amount || 0), 0) }
+        };
+
+        const audit = await ExportSwarm.execute(swarmPayload);
+
+        if (!audit.isFinal) {
+          toast.error(`Export Gagal: ${audit.objections.join(', ')}`);
+          return;
+        }
+
+        // 2. Jika Lolos Audit, Generate XML
+        const xml = generateCoreTaxXML(data, activeBusiness || {});
+        // Mocking/Assuming download logic based on provided context
+        const blob = new Blob([xml], { type: 'application/xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename || `CoreTax_Unifikasi_${new Date().toISOString().slice(0, 10)}.xml`;
+        a.click();
+        return;
+      } catch (err) {
+        toast.error("Terjadi kesalahan saat validasi swarm.");
+        return;
+      }
     }
 
     const mapped = mapToEbupotFormat(data);
@@ -45,7 +83,7 @@ export default function EbupotExportButton({ data = [], filename, disabled = fal
           className="bg-gradient-to-r from-primary to-neon-purple text-primary-foreground gap-2 glow-blue"
         >
           <Download className="w-4 h-4" />
-          CSV e-Bupot ✅
+          {format} e-Bupot ✅
         </Button>
       </motion.div>
 

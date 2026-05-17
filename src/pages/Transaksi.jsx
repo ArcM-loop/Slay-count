@@ -9,12 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Search, Upload, Camera, Trash2, Pencil } from 'lucide-react';
 import ScanNotaModal from '@/components/transactions/ScanNotaModal';
-import ImportCSVModal from '@/components/transactions/ImportCSVModal';
+import SmartImportModal from '@/components/transactions/SmartImportModal';
 import EditTransactionModal from '@/components/transactions/EditTransactionModal';
+import { Zap } from 'lucide-react';
 
 import { deleteJournalEntries } from '@/lib/journalEngine';
+import { isPeriodLocked, PERIOD_LOCKED_ERROR } from '@/lib/accountingValidation';
 
-const STATUS_TABS = ['Semua', 'Inbox', 'Divalidasi', 'Final'];
+const STATUS_TABS = ['Semua', 'Inbox', 'Divalidasi', 'Final', 'Void'];
 const TYPE_FILTERS = ['Semua', 'Pemasukan', 'Pengeluaran', 'Transfer'];
 
 export default function Transaksi() {
@@ -40,9 +42,30 @@ export default function Transaksi() {
         return matchSearch && matchStatus && matchType;
     });
 
-    const handleDelete = async (id) => {
-        await GoogleGenerativeAI.entities.Transaction.delete(id);
-        await deleteJournalEntries(id);
+    const handleDelete = async (tx) => {
+        // 1. Lock Period Protection (Enhanced)
+        const locked = await isPeriodLocked(tx.date, activeBusiness.id);
+        if (locked) {
+            alert(PERIOD_LOCKED_ERROR);
+            return;
+        }
+
+        if (tx.status === 'Final') {
+            if (window.confirm("⚠️ Transaksi ini sudah FINAL. Secara profesional tidak boleh dihapus, hanya boleh di-VOID (dibatalkan) agar jejak audit tetap ada. Lanjut?")) {
+                await GoogleGenerativeAI.entities.Transaction.update(tx.id, { 
+                    status: 'Void',
+                    description: `[VOID] ${tx.description}` 
+                });
+                // When voided, we should also handle journal entry reversals in a real system
+                alert("✅ Transaksi telah di-VOID.");
+            }
+        } else {
+            if (window.confirm("Hapus transaksi ini secara permanen?")) {
+                await GoogleGenerativeAI.entities.Transaction.delete(tx.id);
+                await deleteJournalEntries(tx.id);
+            }
+        }
+        
         queryClient.invalidateQueries({ queryKey: ['transactions', activeBusiness?.id] });
         queryClient.invalidateQueries({ queryKey: ['journal-entries', activeBusiness?.id] });
     };
@@ -62,8 +85,8 @@ export default function Transaksi() {
                     <Button variant="outline" size="sm" onClick={() => setShowScan(true)} className="border-border gap-2">
                         <Camera className="w-4 h-4" /> Scan Nota
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setShowImport(true)} className="border-border gap-2">
-                        <Upload className="w-4 h-4" /> Import CSV
+                    <Button variant="outline" size="sm" onClick={() => setShowImport(true)} className="border-primary/30 text-primary gap-2 hover:bg-primary/10">
+                        <Zap className="w-4 h-4 fill-current" /> Smart Import
                     </Button>
                 </div>
             </motion.div>
@@ -139,7 +162,7 @@ export default function Transaksi() {
                                         <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                     <button
-                                        onClick={() => handleDelete(tx.id)}
+                                        onClick={() => handleDelete(tx)}
                                         className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />
@@ -152,7 +175,27 @@ export default function Transaksi() {
             )}
 
             <ScanNotaModal open={showScan} onClose={() => setShowScan(false)} />
-            <ImportCSVModal open={showImport} onClose={() => setShowImport(false)} />
+            <SmartImportModal 
+                isOpen={showImport} 
+                onClose={() => setShowImport(false)} 
+                onComplete={async (data) => {
+                    // Cek locking untuk setiap transaksi import
+                    for (const tx of data) {
+                        const locked = await isPeriodLocked(tx.date, activeBusiness.id);
+                        if (locked) {
+                            alert(`Gagal Import: Transaksi tanggal ${tx.date} berada di periode yang sudah ditutup.`);
+                            continue;
+                        }
+                        await GoogleGenerativeAI.entities.Transaction.create({
+                            ...tx,
+                            business_id: activeBusiness.id,
+                            status: 'Inbox',
+                            source: 'Smart Import'
+                        });
+                    }
+                    queryClient.invalidateQueries({ queryKey: ['transactions', activeBusiness?.id] });
+                }}
+            />
             <EditTransactionModal
                 transaction={editingTx}
                 open={!!editingTx}

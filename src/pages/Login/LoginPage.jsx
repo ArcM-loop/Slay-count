@@ -13,8 +13,10 @@ const LoginPage = () => {
     try {
       const { data, error } = await GoogleGenerativeAI.auth.loginWithGoogle();
       if (error) throw error;
-      
-      localStorage.setItem('slaycount_session_token', 'firebase-auth-token-placeholder');
+
+      // [CVE-5 Fixed by Herta] Token tidak disimpan di localStorage.
+      // Autentikasi sepenuhnya dikelola oleh Firebase Auth + HttpOnly Cookie dari backend.
+      // PrivateRoute akan memverifikasi status login via endpoint /auth/verify.
       navigate('/');
     } catch (err) {
       setError(err.message || 'Terjadi kesalahan saat menghubungkan ke Google.');

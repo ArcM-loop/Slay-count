@@ -1,147 +1,147 @@
 /**
- * SlayCount — Tax Calculator
- * Semua rumus PPh & PPN untuk bisnis di Indonesia.
+ * SLAYCOUNT TAX POLICY ENGINE (Professional & Compliance Grade)
+ * Berdasarkan UU HPP, PP 55/2022, PMK 168/2023, dan UU HKPD.
+ * Update: Mei 2024 (Menangani Expiry PPh Final 0.5% & Skema TER)
  */
 
-export const TAX_RULES = {
-  PPN_IN:       { rate: 0.11, type: 'add',      label: 'PPN Masukan (11%)',      emoji: '📥' },
-  PPN_OUT:      { rate: 0.11, type: 'add',      label: 'PPN Keluaran (11%)',     emoji: '📤' },
-  PPH_21:       { rate: 0.05, type: 'subtract', label: 'PPh 21 (5%)',            emoji: '👨‍💼' },
-  PPH_23:       { rate: 0.02, type: 'subtract', label: 'PPh 23 (2%)',            emoji: '🧑‍💼' },
-  PPH_4_2:      { rate: 0.10, type: 'subtract', label: 'PPh 4(2) Final (10%)',   emoji: '🏢' },
-  FINAL_UMKM:   { rate: 0.005, type: 'subtract', label: 'PPh Final UMKM (0.5%)', emoji: '🏪' },
+export const TAX_POLICIES = {
+  PPH_FINAL_DURATION: {
+    PT: 3,        // Tahun
+    CV: 4,        // Tahun
+    KOPERASI: 4,  // Tahun
+    FIRM: 4,      // Tahun
+    INDIVIDUAL: 7 // Tahun (Dihitung sejak terdaftar atau sejak 2018 jika terdaftar sebelum itu)
+  },
+  THRESHOLD_PKP: 4800000000, // 4.8 Miliar
+  THRESHOLD_INDIVIDUAL_EXEMPT: 500000000, // 500 Juta Bebas Pajak (UU HPP)
+  DEFAULT_PBJT: 0.10, // Pajak Daerah (Umum)
+  PPN_RATE: 0.11,     // PPN Pusat
+  // Tarif Progresif Pasal 17 (UU HPP)
+  PASAL_17_LAYERS: [
+    { limit: 60000000, rate: 0.05 },
+    { limit: 250000000, rate: 0.15 },
+    { limit: 500000000, rate: 0.25 },
+    { limit: 5000000000, rate: 0.30 },
+    { limit: Infinity, rate: 0.35 }
+  ],
+  // TER (Tarif Efektif Rata-rata) Category A - Simplified Sample
+  TER_A: [
+    { limit: 5400000, rate: 0 },
+    { limit: 5650000, rate: 0.0025 },
+    { limit: 6200000, rate: 0.005 },
+    { limit: 6500000, rate: 0.0075 },
+    { limit: Infinity, rate: 0.10 } // Over-simplified for logic demonstration
+  ]
 };
 
 /**
- * Hitung pajak dari nominal transaksi
+ * Menghitung kelayakan penggunaan PPh Final 0.5%
+ * MENGAMBIL CELAH: Menangani batas waktu (expiry) dan kriteria pekerjaan bebas.
  */
-export function calculateTax(amount, taxCode) {
-  const rule = TAX_RULES[taxCode];
-  if (!rule) return { taxAmount: 0, netAmount: amount, rule: null };
+export const evaluateTaxPolicy = (business, currentTurnoverYearly) => {
+  const currentYear = new Date().getFullYear();
+  const startYear = new Date(business.createdAt).getFullYear();
   
-  const taxAmount = Math.round(amount * rule.rate);
-  const netAmount = rule.type === 'add' ? amount + taxAmount : amount - taxAmount;
+  // Berdasarkan PP 55/2022 Pasal 59: Jangka waktu dihitung sejak 2018 bagi WP lama
+  const baseYear = Math.max(startYear, 2018);
+  const yearsActive = currentYear - baseYear;
   
-  return { taxAmount, netAmount, rule };
-}
-
-/**
- * Hitung estimasi PPh Badan (22%)
- */
-export function calculatePPhBadan(commercialProfit, fiscalCorrection = 0) {
-  const labaFiskal = commercialProfit + fiscalCorrection;
-  const taxableIncome = Math.max(0, labaFiskal);
+  const durationLimit = TAX_POLICIES.PPH_FINAL_DURATION[business.entityType] || 0;
+  const isExpired = yearsActive >= durationLimit;
   
-  // Tarif PPh Badan 22%
-  const pphBadan = Math.round(taxableIncome * 0.22);
+  // Celah Pekerjaan Bebas (Doctor, Lawyer, etc) dilarang pakai 0.5%
+  const isForbiddenFromFinal = business.isProfessionalService === true;
+  
+  const canUseFinal = !isExpired && !isForbiddenFromFinal;
   
   return {
-    labaFiskal,
-    pphBadan
+    useFinal: canUseFinal,
+    isExpired,
+    isForbiddenFromFinal,
+    mustRegisterPKPNextYear: currentTurnoverYearly > TAX_POLICIES.THRESHOLD_PKP,
+    yearsRemaining: Math.max(0, durationLimit - yearsActive),
+    currentRegime: canUseFinal ? "PPh Final 0.5% (UMKM)" : "Tarif Umum Pasal 17 / Pembukuan",
+    alert: isExpired ? "Masa berlaku PPh Final 0,5% telah habis. Wajib pindah ke tarif normal." : null
   };
-}
-/**
- * Legacy alias for calculatePPhBadan returning only the tax amount
- */
-export function calculateCorporateTax(commercialProfit, fiscalCorrection = 0) {
-  return calculatePPhBadan(commercialProfit, fiscalCorrection).pphBadan;
-}
+};
 
 /**
- * Hitung PPN netto (Keluaran - Masukan)
+ * Kalkulator Pajak Cerdas (Smart Tax Calc)
+ * Menangani 500 Juta Bebas Pajak, TER (Tarif Efektif), dan PBJT.
  */
-export function calculateNetPPN(transactions) {
-  let ppnKeluaran = 0;
-  let ppnMasukan = 0;
-  
-  transactions.forEach(tx => {
-    if (tx.tax_type === 'PPN_OUT') {
-      ppnKeluaran += calculateTax(Math.abs(tx.amount), 'PPN_OUT').taxAmount;
-    }
-    if (tx.tax_type === 'PPN_IN') {
-      ppnMasukan += calculateTax(Math.abs(tx.amount), 'PPN_IN').taxAmount;
-    }
-  });
-  
-  return { ppnKeluaran, ppnMasukan, netPPN: ppnKeluaran - ppnMasukan };
-}
+export const calculateSmartTax = (amount, category, options = {}) => {
+  const { 
+    isExpertService = false, 
+    isForeignResident = false,
+    isNonBKP = false,
+    isRegionalTax = false,
+    cumulativeTurnoverThisYear = 0, // Penting untuk cek batas 500jt
+    entityType = 'INDIVIDUAL'
+  } = options;
+
+  let ppn = 0;
+  let pph = 0;
+  let pbjt = 0;
+
+  // 1. Logika 500 Juta Bebas Pajak (Hanya untuk OP UMKM - UU HPP)
+  let taxableAmountForFinal = amount;
+  if (entityType === 'INDIVIDUAL' && !isExpertService) {
+    const remainingExempt = Math.max(0, TAX_POLICIES.THRESHOLD_INDIVIDUAL_EXEMPT - cumulativeTurnoverThisYear);
+    taxableAmountForFinal = Math.max(0, amount - remainingExempt);
+  }
+
+  // 2. Logika PBJT (Pajak Daerah) vs PPN (Pajak Pusat)
+  if (isRegionalTax) {
+    pbjt = amount * TAX_POLICIES.DEFAULT_PBJT;
+    ppn = 0;
+  } else if (!isNonBKP) {
+    ppn = amount * TAX_POLICIES.PPN_RATE;
+  }
+
+  // 3. Logika PPh (Potong Pungut & Tarif Umum)
+  if (isForeignResident) {
+    pph = amount * 0.20; // PPh 26 (Flat 20%)
+  } else if (isExpertService) {
+    // PMK 168/2023: Tenaga Ahli menggunakan DPP 50% x Pasal 17 Progresif
+    const dpp = amount * 0.5;
+    pph = calculateProgressiveTax(dpp); 
+  } else if (entityType === 'INDIVIDUAL' && evaluateTaxPolicy(options.business || {}, cumulativeTurnoverThisYear).useFinal) {
+    // PPh Final UMKM 0.5%
+    pph = taxableAmountForFinal * 0.005;
+  } else {
+    // Tarif Umum Pasal 17 untuk Badan atau OP yang sudah tidak Final
+    pph = calculateProgressiveTax(amount);
+  }
+
+  return {
+    dpp: amount,
+    taxableAmount: taxableAmountForFinal,
+    ppn,
+    pph,
+    pbjt,
+    totalTax: ppn + pph + pbjt,
+    netAmount: amount + ppn + pbjt - pph,
+    isExempt: taxableAmountForFinal === 0 && amount > 0
+  };
+};
 
 /**
- * Rekap PPh per tipe
+ * Helper: Menghitung Pajak Progresif Pasal 17
  */
-export function calculatePPhSummary(transactions) {
-  const summary = {};
-  
-  Object.keys(TAX_RULES).forEach(code => {
-    if (code.startsWith('PPH') || code === 'FINAL_UMKM') {
-      const filtered = transactions.filter(tx => tx.tax_type === code);
-      const totalBase = filtered.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-      const totalTax = filtered.reduce((sum, tx) => sum + calculateTax(Math.abs(tx.amount), code).taxAmount, 0);
-      
-      if (filtered.length > 0) {
-        summary[code] = {
-          ...TAX_RULES[code],
-          count: filtered.length,
-          totalBase,
-          totalTax,
-        };
-      }
-    }
-  });
-  
-  return summary;
-}
+function calculateProgressiveTax(taxableIncome) {
+  let remaining = taxableIncome;
+  let totalTax = 0;
+  let previousLimit = 0;
 
-/**
- * Cek tenggat waktu pajak bulan ini
- */
-export function getTaxDeadlines() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  
-  return [
-    {
-      id: 'pph21',
-      name: 'Setor PPh 21/26',
-      deadline: new Date(year, month, 10),
-      emoji: '👨‍💼',
-    },
-    {
-      id: 'pph23',
-      name: 'Setor PPh 23',
-      deadline: new Date(year, month, 10),
-      emoji: '🧑‍💼',
-    },
-    {
-      id: 'ppn',
-      name: 'Setor & Lapor PPN',
-      deadline: new Date(year, month + 1, 0), // last day of month
-      emoji: '📤',
-    },
-    {
-      id: 'spt_masa',
-      name: 'Lapor SPT Masa PPh',
-      deadline: new Date(year, month, 20),
-      emoji: '📋',
-    },
-  ].map(d => ({
-    ...d,
-    daysLeft: Math.ceil((d.deadline - now) / (1000 * 60 * 60 * 24)),
-    isOverdue: now > d.deadline,
-  }));
-}
+  for (const layer of TAX_POLICIES.PASAL_17_LAYERS) {
+    const layerCapacity = layer.limit - previousLimit;
+    const amountInLayer = Math.min(remaining, layerCapacity);
+    
+    totalTax += amountInLayer * layer.rate;
+    remaining -= amountInLayer;
+    previousLimit = layer.limit;
 
-/**
- * Deteksi tipe pajak otomatis dari deskripsi
- */
-export function detectTaxType(description = '') {
-  const desc = description.toLowerCase();
-  if (desc.includes('ppn masukan')) return 'PPN_IN';
-  if (desc.includes('ppn keluaran') || desc.includes('ppn')) return 'PPN_OUT';
-  if (desc.includes('pph 21') || desc.includes('gaji')) return 'PPH_21';
-  if (desc.includes('pph 23') || desc.includes('jasa')) return 'PPH_23';
-  if (desc.includes('pph 4(2)') || desc.includes('sewa')) return 'PPH_4_2';
-  if (desc.includes('umkm')) return 'FINAL_UMKM';
-  return null;
+    if (remaining <= 0) break;
+  }
+  return totalTax;
 }
