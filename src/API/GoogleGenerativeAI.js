@@ -3,13 +3,13 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailA
 import { getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit as firestoreLimit, writeBatch } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g",
+  authDomain: "accountomation.firebaseapp.com",
+  projectId: "accountomation",
+  storageBucket: "accountomation.firebasestorage.app",
+  messagingSenderId: "825422475013",
+  appId: "1:825422475013:web:8cf09b6a53aac97838516c",
+  measurementId: "G-6GR6FE8W90"
 };
 
 // ✅ Guard: Hanya inisialisasi jika belum ada Firebase app yang berjalan

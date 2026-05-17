@@ -2,26 +2,27 @@
  * FIREBASE CONFIG - BRIDGE MODULE
  * =================================
  * Single source of truth untuk Firebase ada di GoogleGenerativeAI.js
- * File ini hanya me-re-export agar import lama tetap bekerja tanpa duplikasi.
+ * File ini hanya me-re-export agar import lama (dari lib/firebaseConfig) tetap bekerja.
  * 
- * [BUGFIX] Menghapus initializeApp() duplikat yang menyebabkan crash blank screen.
+ * [BUGFIX] Menggunakan getApps() guard agar tidak ada duplikasi initializeApp.
  */
 
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
+// Firebase config — client config ini memang harus ada di browser (bukan secret)
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g",
+  authDomain: "accountomation.firebaseapp.com",
+  projectId: "accountomation",
+  storageBucket: "accountomation.firebasestorage.app",
+  messagingSenderId: "825422475013",
+  appId: "1:825422475013:web:8cf09b6a53aac97838516c",
+  measurementId: "G-6GR6FE8W90"
 };
 
-// ✅ Guard: Hanya inisialisasi jika belum ada app yang berjalan
+// ✅ Guard: Hanya inisialisasi jika belum ada Firebase app yang berjalan
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
