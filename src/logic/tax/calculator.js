@@ -246,15 +246,23 @@ export function calculatePPhSummary(transactions = []) {
 
 /**
  * Menghitung estimasi PPh Badan dari laba fiskal (22%).
- * @param {Array} transactions - Daftar transaksi final
+ * @param {Array|number} transactionsOrProfit - Daftar transaksi final ATAU Laba komersial
+ * @param {number} [maybeCorrection=0] - Koreksi fiskal jika argumen pertama adalah angka
  * @returns {number} Estimasi PPh Badan
  */
-export function calculateCorporateTax(transactions = []) {
+export function calculateCorporateTax(transactionsOrProfit = [], maybeCorrection = 0) {
+  if (typeof transactionsOrProfit === 'number') {
+    const profit = transactionsOrProfit;
+    const correction = typeof maybeCorrection === 'number' ? maybeCorrection : 0;
+    return calculatePPhBadan(profit + correction);
+  }
+
+  const transactions = Array.isArray(transactionsOrProfit) ? transactionsOrProfit : [];
   const revenue = transactions
-    .filter(tx => tx.type === 'Pemasukan')
+    .filter(tx => tx.type === 'Pemasukan' || tx.type === 'income')
     .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
   const expense = transactions
-    .filter(tx => tx.type === 'Pengeluaran')
+    .filter(tx => tx.type === 'Pengeluaran' || tx.type === 'expense')
     .reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
   const fiscalProfit = Math.max(0, revenue - expense);
   return calculatePPhBadan(fiscalProfit);

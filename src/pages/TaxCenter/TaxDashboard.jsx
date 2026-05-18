@@ -61,8 +61,8 @@ export default function TaxCenterPage() {
   const fiscalData = useMemo(() => calculateFiscalCorrection(transactions, accounts), [transactions, accounts]);
 
   const pnlSummary = useMemo(() => {
-    const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Math.abs(t.amount), 0);
-    const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Math.abs(t.amount), 0);
+    const income = transactions.filter(t => t.type === 'Pemasukan' || t.type === 'income').reduce((s, t) => s + Math.abs(t.amount), 0);
+    const expense = transactions.filter(t => t.type === 'Pengeluaran' || t.type === 'expense').reduce((s, t) => s + Math.abs(t.amount), 0);
     return { income, expense, profit: income - expense };
   }, [transactions]);
 
