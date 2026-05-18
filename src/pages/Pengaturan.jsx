@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import { GoogleGenerativeAI, auth } from '@/API/GoogleGenerativeAI';
 import { useBusiness } from '@/lib/BusinessContext';
 import { Button } from '@/components/ui/button';

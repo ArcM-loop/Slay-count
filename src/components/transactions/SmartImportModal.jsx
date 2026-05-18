@@ -10,7 +10,8 @@ import {
     Table as TableIcon,
     Settings2,
     Database,
-    Trash2
+    Trash2,
+    Info
 } from 'lucide-react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { 
+    TooltipProvider, 
+    Tooltip, 
+    TooltipTrigger, 
+    TooltipContent 
+} from "@/components/ui/tooltip";
 import { analyzeColumns, cleanData } from '@/lib/smartImportEngine';
 import { motion, AnimatePresence } from 'framer-motion';
 

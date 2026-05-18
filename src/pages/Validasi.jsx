@@ -7,9 +7,10 @@ import { formatRupiah, formatDate, getTypeEmoji } from '@/lib/formatters';
 import { createJournalEntries, validateJournalWithSwarm } from '@/lib/journalEngine';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/auditTrail';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, CheckCircle, X, Bot, Zap, ShieldAlert, RefreshCw } from 'lucide-react';
+import { Loader2, CheckCircle, X, Bot, Zap, ShieldAlert, RefreshCw, AlertCircle } from 'lucide-react';
 import ParticleExplosion from '@/components/hud/ParticleExplosion';
 import HudTypewriter from '@/components/hud/HudTypewriter';
 
@@ -28,12 +29,18 @@ export default function Validasi() {
         if (savedState === 'true') setIsAutopilot(true);
     }, []);
 
+    const { data: inboxTx = [], isLoading } = useQuery({
+        queryKey: ['transactions-inbox', activeBusiness?.id],
+        queryFn: () => GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, status: 'Inbox' }, '-created_date'),
+        enabled: !!activeBusiness,
+    });
+
     // Cek Duplikat di Inbox
     useEffect(() => {
-        if (transactions.length > 0) {
+        if (inboxTx.length > 0) {
             const potentialDupes = new Set();
-            transactions.forEach((tx, idx) => {
-                const isDupe = transactions.some((other, oIdx) => 
+            inboxTx.forEach((tx, idx) => {
+                const isDupe = inboxTx.some((other, oIdx) => 
                     idx !== oIdx && 
                     other.vendor_name === tx.vendor_name && 
                     Math.abs(other.amount - tx.amount) < 1 && 
@@ -43,7 +50,7 @@ export default function Validasi() {
             });
             setDuplicates(potentialDupes);
         }
-    }, [transactions]);
+    }, [inboxTx]);
 
     const handleEnableAutopilot = () => {
         localStorage.setItem('slaycount_autopilot', 'true');
@@ -57,11 +64,6 @@ export default function Validasi() {
         setShowDisableModal(false);
     };
 
-    const { data: inboxTx = [], isLoading } = useQuery({
-        queryKey: ['transactions-inbox', activeBusiness?.id],
-        queryFn: () => GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, status: 'Inbox' }, '-created_date'),
-        enabled: !!activeBusiness,
-    });
 
     const { data: accounts = [] } = useQuery({
         queryKey: ['accounts', activeBusiness?.id],

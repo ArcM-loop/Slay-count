@@ -1,21 +1,9 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword } from "firebase/auth";
-import { getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit as firestoreLimit, writeBatch } from "firebase/firestore";
+import { getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit as firestoreLimit, writeBatch, collection } from "firebase/firestore";
+import { auth, db } from '../lib/firebaseConfig';
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g",
-  authDomain: "accountomation.firebaseapp.com",
-  projectId: "accountomation",
-  storageBucket: "accountomation.firebasestorage.app",
-  messagingSenderId: "825422475013",
-  appId: "1:825422475013:web:8cf09b6a53aac97838516c",
-  measurementId: "G-6GR6FE8W90"
-};
+export { auth, db };
 
-// ✅ Guard: Hanya inisialisasi jika belum ada Firebase app yang berjalan
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const auth = getAuth(app);
-export const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
 export const GoogleGenerativeAI = {
