@@ -32,42 +32,25 @@ export const googleProvider = new GoogleAuthProvider();
 export const loginWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    const idToken = await result.user.getIdToken();
-
-    const response = await fetch('http://localhost:5000/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken }),
-      credentials: 'include'
-    });
-
-    if (!response.ok) throw new Error("Autentikasi gagal di server");
-    return await response.json();
+    return { authenticated: true, user: result.user };
   } catch (error) {
     console.error("Login failed:", error);
     throw error;
   }
 };
 
-export const checkAuthStatus = async () => {
-  try {
-    const response = await fetch('http://localhost:5000/auth/verify', {
-      method: 'GET',
-      credentials: 'include'
+export const checkAuthStatus = () => {
+  return new Promise((resolve) => {
+    // Listen for the auth state just once to resolve the initial check
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      unsubscribe();
+      resolve({ authenticated: !!user, user });
     });
-    if (!response.ok) return { authenticated: false };
-    return await response.json();
-  } catch (e) {
-    return { authenticated: false };
-  }
+  });
 };
 
 export const logout = async () => {
   try {
-    await fetch('http://localhost:5000/auth/logout', {
-      method: 'POST',
-      credentials: 'include'
-    });
     await signOut(auth);
   } catch (e) {
     console.error("Logout error", e);
