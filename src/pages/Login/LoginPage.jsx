@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
-import { checkAuthStatus } from '@/lib/firebaseConfig';
+import { useAuth } from '@/lib/AuthContext';
 
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const { isAuthenticated, isLoadingAuth } = useAuth();
 
   useEffect(() => {
-    checkAuthStatus().then(res => {
-      if (res.authenticated) {
-        navigate('/');
-      }
-    });
-  }, [navigate]);
+    if (!isLoadingAuth && isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, isLoadingAuth, navigate]);
 
   const handleLogin = async () => {
     setLoading(true);

@@ -1,4 +1,4 @@
-import { getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit as firestoreLimit, writeBatch, collection } from "firebase/firestore";
+import { getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit as firestoreLimit, writeBatch, collection } from "firebase/firestore";
 import { auth, db } from '../lib/firebaseConfig';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 

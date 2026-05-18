@@ -18,8 +18,8 @@ const SettingsPage = lazy(() => import('./pages/Pengaturan'));
 const ManualJournalPage = lazy(() => import('./pages/ManualJournal'));
 const FinancialHealthPage = lazy(() => import('./pages/FinancialHealth'));
 import LoginPage from './pages/Login/LoginPage';
-import { checkAuthStatus } from './lib/firebaseConfig';
 import { useState, useEffect } from 'react';
+import { useAuth } from './lib/AuthContext';
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -31,18 +31,11 @@ const PageLoader = () => (
   </div>
 );
 
-// PrivateRoute component untuk memproteksi rute internal
 const PrivateRoute = ({ children }) => {
-  const [authState, setAuthState] = useState({ loading: true, authenticated: false });
+  const { isAuthenticated, isLoadingAuth } = useAuth();
   const location = useLocation();
 
-  useEffect(() => {
-    checkAuthStatus().then(res => {
-      setAuthState({ loading: false, authenticated: res.authenticated });
-    });
-  }, []);
-  
-  if (authState.loading) {
+  if (isLoadingAuth) {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4 text-white">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -51,7 +44,7 @@ const PrivateRoute = ({ children }) => {
     );
   }
 
-  if (!authState.authenticated) {
+  if (!isAuthenticated) {
     // Jika tidak terautentikasi di server, redirect ke login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }

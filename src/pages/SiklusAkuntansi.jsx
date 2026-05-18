@@ -290,12 +290,12 @@ export default function SiklusAkuntansi() {
             closing_balance: labaBersih,
             total_pendapatan: totalPendapatan,
             total_beban: totalBeban,
-            notes: `Ditutup manual — ${inPeriod.length} transaksi`,
+            notes: `Ditutup manual — ${inPeriodEntries.length} transaksi`,
         });
 
         queryClient.invalidateQueries({ queryKey: ['period-closings', activeBusiness.id] });
         queryClient.invalidateQueries({ queryKey: ['journal-entries', activeBusiness.id] });
-        setClosingResult({ period, labaBersih, totalPendapatan, totalBeban, txCount: inPeriod.length });
+        setClosingResult({ period, labaBersih, totalPendapatan, totalBeban, txCount: inPeriodEntries.length });
         setClosingRunning(false);
     };
 

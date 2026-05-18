@@ -79,7 +79,7 @@ export default function Dashboard() {
         <div className="text-6xl animate-bounce">🏢</div>
         <h2 className="text-xl font-bold">Belum ada bisnis nih</h2>
         <p className="text-muted-foreground text-sm">Yuk buat bisnis dulu di Pengaturan!</p>
-        <Link to="/settings">
+        <Link to="/pengaturan">
            <Button className="mt-2 bg-primary/20 text-primary border-primary/30">Ke Pengaturan ⚙️</Button>
         </Link>
       </div>

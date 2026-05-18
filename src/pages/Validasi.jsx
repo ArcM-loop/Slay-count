@@ -214,6 +214,7 @@ export default function Validasi() {
                             key={tx.id}
                             tx={tx}
                             accounts={accounts}
+                            duplicates={duplicates}
                             onFinalize={handleFinalize}
                             onReject={handleReject}
                             delay={i * 0.05}
@@ -225,7 +226,7 @@ export default function Validasi() {
     );
 }
 
-function ValidationCard({ tx, accounts, onFinalize, onReject, delay }) {
+function ValidationCard({ tx, accounts, duplicates = new Set(), onFinalize, onReject, delay }) {
     const [accountId, setAccountId] = useState(tx.account_id || '');
     const [paymentAccountId, setPaymentAccountId] = useState('');
     const [showAIChip, setShowAIChip] = useState(!!tx.ai_suggested_category);

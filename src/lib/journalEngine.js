@@ -117,7 +117,12 @@ import {
 } from './swarm/agents/cfo/marketGroup';
 import { 
   DividendPolicyAgent, 
-  StrategicExitAgent 
+  StrategicExitAgent,
+  SolvencyWatchAgent,
+  AltmanZScoreAgent,
+  EnterpriseValueAgent,
+  SensitivityAnalystAgent,
+  ESG_ComplianceAgent
 } from './swarm/agents/cfo/riskGroup';
 import {
   RecessionSurvivorAgent,
@@ -169,8 +174,8 @@ const swarm = new SwarmOrchestrator([
 
   // Audit
   VendorKickbackAgent, GhostVendorAgent, DuplicatePaymentAgent, ProcurementCycleAgent,
-  LappingDetectionAgent, KitingDetectionAgent, SkimmingAgent, PayrollFraudAgent,
-  InventoryShrinkageAgent, ConflictOfInterestAgent, RevenueManipulationAgent, AssetLaunderingAgent,
+  LappingAuditorAgent, SkimmingDetectorAgent, AssetTheftScoutAgent, RevenueRecognitionAgent,
+  BenfordStatAgent, AnomalyPatternAgent, UserBehaviorAgent, OutlierDetectorAgent, AssetLaunderingAgent,
 
   // Global
   IFRSAgent,
@@ -181,7 +186,6 @@ const swarm = new SwarmOrchestrator([
   // CFO
   RoIAnalyzerAgent, EBIDTA_ScoutAgent, GPM_SpecialistAgent, OPEX_OptimizerAgent,
   WorkingCapitalAgent, UnitEconomicsAgent, BudgetGuardAgent, VarianceForensicAgent,
-  ScenarioArchitectAgent, BurnRateProphetAgent, ExpansionRiskAgent, DebtCapacityAgent, MarketVolatilityAgent,
   ZeroBasedAuditorAgent, RollingForecastAgent, ScenarioBuilderAgent, CapExPlannerAgent,
   MarketTrendAgent, CompetitorPricingAgent, IndustryBenchmarkAgent, ProductLifeCycleAgent,
   ExpansionScoutAgent, MnA_EvaluatorAgent, SolvencyWatchAgent, AltmanZScoreAgent,
