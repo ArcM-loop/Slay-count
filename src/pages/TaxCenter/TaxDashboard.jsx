@@ -284,7 +284,7 @@ export default function TaxCenterPage() {
                     {d.isOverdue ? 'TERLAMBAT' : d.daysLeft === 0 ? 'HARI INI' : `${d.daysLeft} Hari Lagi`}
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {d.deadline.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                    {(d.deadline instanceof Date ? d.deadline : new Date(d.deadline)).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                   </p>
                 </div>
               </div>

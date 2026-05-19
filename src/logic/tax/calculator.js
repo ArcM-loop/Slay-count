@@ -200,7 +200,7 @@ export function getUpcomingDeadlines(business = {}) {
   return deadlines.map(d => {
     const deadlineDate = new Date(d.deadline);
     const daysLeft = Math.ceil((deadlineDate - today) / (1000 * 60 * 60 * 24));
-    return { ...d, daysLeft, isPast: daysLeft < 0 };
+    return { ...d, deadline: deadlineDate, daysLeft, isPast: daysLeft < 0 };
   }).filter(d => d.daysLeft > -30) // Tampilkan maksimal 30 hari yang lalu
     .sort((a, b) => a.daysLeft - b.daysLeft);
 }

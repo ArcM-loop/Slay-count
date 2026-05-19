@@ -43,9 +43,9 @@ export const GoogleGenerativeAI = {
   },
 
   MODELS: {
-    FAST: "gemini-2.0-flash",
-    DEEP: "gemini-2.0-pro",
-    VISION: "gemini-2.0-pro-vision"
+    FAST: "gemini-3-flash",
+    DEEP: "gemini-3-pro",
+    VISION: "gemini-3-pro-vision"
   },
 
   entities: {
