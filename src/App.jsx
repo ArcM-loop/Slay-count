@@ -135,6 +135,12 @@ function App() {
           </Suspense>
         } />
 
+        <Route path="bank-reconciliation" element={
+          <Suspense fallback={<PageLoader />}>
+            <BankReconciliationPage />
+          </Suspense>
+        } />
+
         <Route path="health" element={
           <Suspense fallback={<PageLoader />}>
             <FinancialHealthPage />

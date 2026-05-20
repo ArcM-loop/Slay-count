@@ -36,14 +36,35 @@ export const analyzeColumns = (headers) => {
     return mapping;
 };
 
+// [CVE-9 Helper] Mencegah serangan CSV / Formula Injection
+// Karakter pemicu formula Excel/Sheets di awal kata wajib di-escape menggunakan petik tunggal (')
+const sanitizeValue = (val) => {
+    if (typeof val !== 'string') return val;
+    const trimmed = val.trim();
+    if (!trimmed) return '';
+    
+    const formulaChars = ['=', '+', '-', '@', '|', '\r', '\n'];
+    if (formulaChars.some(char => trimmed.startsWith(char))) {
+        // Tambahkan petik tunggal di depan untuk memaksa Excel membacanya sebagai string biasa
+        return `'${trimmed}`;
+    }
+    return trimmed;
+};
+
 export const cleanData = (rows, mapping, coaSuggestions = []) => {
     return rows.map(row => {
+        const rawDate = row[mapping.date?.index] || '';
+        const rawDesc = row[mapping.description?.index] || 'Tanpa Keterangan';
+        const rawCategory = row[mapping.category?.index] || '';
+        const rawRef = row[mapping.reference?.index] || '';
+
         const cleanedRow = {
-            date: row[mapping.date?.index] || new Date().toISOString().split('T')[0],
-            description: row[mapping.description?.index] || 'Tanpa Keterangan',
+            date: rawDate.trim() || new Date().toISOString().split('T')[0],
+            // [CVE-9 Fixed by Herta] — Semua teks yang rentan di-sanitasi ketat
+            description: sanitizeValue(rawDesc),
             amount: parseFloat(String(row[mapping.amount?.index]).replace(/[^0-9.-]+/g, "")) || 0,
-            category: row[mapping.category?.index] || null,
-            reference: row[mapping.reference?.index] || '',
+            category: rawCategory ? sanitizeValue(rawCategory) : null,
+            reference: sanitizeValue(rawRef),
             confidence: 0,
             suggestions: []
         };

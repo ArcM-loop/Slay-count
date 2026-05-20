@@ -30,6 +30,7 @@ const NAV_ITEMS = [
   { path: '/siklus', label: 'Siklus', icon: RotateCcw, emoji: '♻️' }, // Siklus tetep pake emote biasa
   { path: '/purchase-order', label: 'Purchase Order', icon: BookOpen, emoji: '📦', image: poIcon },
   { path: '/manual-journal', label: 'Jurnal Manual', icon: BookOpenCheck, emoji: '✍️' },
+  { path: '/bank-reconciliation', label: 'Rekonsiliasi Bank', icon: ArrowLeftRight, emoji: '🔄' },
   { path: '/health', label: 'Financial Health', icon: BrainCircuit, emoji: '🧠' },
   { path: '/tax', label: 'Tax Center', icon: Landmark, emoji: '🏛️', image: taxIcon },
   { path: '/ai-dashboard', label: 'Biyo AI', icon: Zap, emoji: '🤖', image: aiIcon },

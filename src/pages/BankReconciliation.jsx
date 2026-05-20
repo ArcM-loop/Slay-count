@@ -38,6 +38,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { runBatchMatch } from '@/lib/swarm/agents/bankMatchAgent';
+import { parseCSV } from '@/lib/utils';
+
 
 const BankReconciliation = () => {
     const { activeBusiness } = useBusiness();
@@ -74,12 +76,83 @@ const BankReconciliation = () => {
     });
 
     // 3. Mock Bank Statement (Simulasi upload PDF/CSV)
-    // Dalam realita, ini akan di-parse dari file yang diunggah
+    // [CVE-13 Fixed by Herta] — Mendukung input statis awal, dan import dinamis dengan sanitasi formula
     const [bankRows, setBankRows] = useState([
         { id: 'b1', date: '2024-05-01', desc: 'TRF DR BPK BUDI - INV 001', amount: 2500000, type: 'CR', status: 'unmatched' },
         { id: 'b2', date: '2024-05-02', desc: 'ADM BANK BULANAN', amount: -6500, type: 'DB', status: 'unmatched' },
         { id: 'b3', date: '2024-05-03', desc: 'PAYMENT TO PT SUMBER MAKMUR', amount: -1200000, type: 'DB', status: 'unmatched' },
     ]);
+
+    // [Security Patch - CVE-13] Anti-Formula Injection Sanitizer
+    const sanitizeValue = (val) => {
+        if (typeof val !== 'string') return val;
+        if (['=', '+', '-', '@'].includes(val.trim().charAt(0))) {
+            return `'${val}`;
+        }
+        return val;
+    };
+
+    // Handler untuk impor statement mutasi bank asli secara aman
+    const handleImportStatement = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validasi ukuran file (max 2MB)
+        if (file.size > 2 * 1024 * 1024) {
+            alert("File terlalu besar. Maksimal 2MB.");
+            return;
+        }
+
+        try {
+            const data = await parseCSV(file);
+            if (data.length === 0) {
+                alert("File CSV kosong.");
+                return;
+            }
+
+            // Batasi baris impor (max 500 baris) demi keamanan memori dan parsing
+            const limitedData = data.slice(0, 500);
+
+            // Auto-detect header kolom
+            const firstRow = limitedData[0];
+            const keys = Object.keys(firstRow);
+            
+            const dateCol = keys.find(k => /date|tanggal/i.test(k)) || keys[0];
+            const descCol = keys.find(k => /desc|keterangan|mutasi|description/i.test(k)) || keys[1];
+            const amountCol = keys.find(k => /amount|nominal|jumlah|value/i.test(k)) || keys[2];
+
+            const parsedRows = limitedData.map((row, index) => {
+                const dateVal = sanitizeValue(row[dateCol] || '');
+                const descVal = sanitizeValue(row[descCol] || 'Mutasi Tanpa Keterangan');
+                const rawAmount = parseFloat(String(row[amountCol]).replace(/[^0-9.-]/g, '')) || 0;
+                
+                return {
+                    id: `imported_${Date.now()}_${index}`,
+                    date: dateVal,
+                    desc: descVal,
+                    amount: rawAmount,
+                    type: rawAmount >= 0 ? 'CR' : 'DB',
+                    status: 'unmatched'
+                };
+            });
+
+            setBankRows(parsedRows);
+            setMatchSummary(null); // Reset hasil matching sebelumnya
+            alert(`Berhasil mengimpor ${parsedRows.length} baris mutasi bank asli secara aman! 🛡️`);
+        } catch (err) {
+            console.error('[BankRecon] Import failed:', err);
+            alert("Gagal mengimpor file statement: " + err.message);
+        } finally {
+            e.target.value = ''; // Reset input agar bisa re-upload file yang sama
+        }
+    };
+
+    // Calculate Dynamic Statement Balance
+    const statementBalance = useMemo(() => {
+        const baseBalance = 11156500; // Saldo awal bank dasar
+        return baseBalance + bankRows.reduce((sum, row) => sum + row.amount, 0);
+    }, [bankRows]);
+
 
     // 4. Calculate Book Balance
     const bookBalance = useMemo(() => {
@@ -157,7 +230,17 @@ const BankReconciliation = () => {
                             ))}
                         </SelectContent>
                     </Select>
-                    <Button className="bg-primary text-primary-foreground font-bold">
+                    <input 
+                        type="file" 
+                        id="bank-statement-upload" 
+                        className="hidden" 
+                        accept=".csv" 
+                        onChange={handleImportStatement} 
+                    />
+                    <Button 
+                        onClick={() => document.getElementById('bank-statement-upload').click()} 
+                        className="bg-primary text-primary-foreground font-bold"
+                    >
                         <Upload className="w-4 h-4 mr-2" /> Import Statement
                     </Button>
                 </div>
@@ -169,12 +252,13 @@ const BankReconciliation = () => {
                     <CardContent className="pt-6">
                         <div className="text-sm text-muted-foreground mb-1">Saldo Rekening Koran</div>
                         <div className="text-2xl font-bold text-cyber-lime">
-                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(12450000)}
+                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(statementBalance)}
                         </div>
                         <div className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                             <Info className="w-3 h-3" /> Data dari file yang diunggah
                         </div>
                     </CardContent>
+
                 </Card>
                 <Card className="bg-black/40 border-white/10 backdrop-blur-md">
                     <CardContent className="pt-6">
