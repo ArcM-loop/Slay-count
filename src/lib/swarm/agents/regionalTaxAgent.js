@@ -3,8 +3,7 @@
  * Menangani PB1 (Pajak Restoran), Pajak Hotel, Reklame, dan Parkir.
  */
 
-import { log } from '@/lib/logger'; // [CVE-6 Fixed by Herta]
-
+const log = (...args) => console.log('[RegionalTax]', ...args);
 export const RegionalTaxAgent = {
   name: 'RegionalTax',
   tier: 1, // Beroperasi di level Worker

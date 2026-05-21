@@ -1,22 +1,9 @@
-const express = require('express');
-const router = express.Router();
-const admin = require('firebase-admin');
-const { z } = require('zod');
-const jwt = require('jsonwebtoken');
+import express from 'express';
+import { z } from 'zod';
+import jwt from 'jsonwebtoken';
+import admin from '../lib/firebaseAdmin.js';
 
-if (!admin.apps.length && process.env.FIREBASE_PROJECT_ID) {
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
-      })
-    });
-  } catch (e) {
-    console.error('Firebase Admin init failed:', e.message);
-  }
-}
+const router = express.Router();
 
 const loginSchema = z.object({
   idToken: z.string().min(10).trim(),
@@ -69,4 +56,5 @@ router.post('/logout', (req, res) => {
   res.json({ message: 'Logged out' });
 });
 
-module.exports = router;
+export default router;
+

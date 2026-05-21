@@ -14,7 +14,7 @@
  * 3. Round-number   → Digit 5 & 1 over-represented (suka pakai 500.000, 1.000.000)
  */
 
-import { runBenfordAnalysis, getSuspiciousDigits, BENFORD_EXPECTED } from '@/lib/forensic/benfordEngine';
+import { runBenfordAnalysis, getSuspiciousDigits, BENFORD_EXPECTED } from '../../forensic/benfordEngine.js';
 
 export const BenfordAuditAgent = {
   name: 'BenfordAudit',

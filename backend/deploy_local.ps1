@@ -1,0 +1,69 @@
+# ==============================================================================
+# LOCAL DEPLOYMENT SCRIPT USING PORTABLE GOOGLE CLOUD SDK
+# ==============================================================================
+
+# Relative path to portable gcloud executable (installed by install_gcloud.ps1)
+$gcloud = Join-Path $PSScriptRoot ".gcloud-sdk\google-cloud-sdk\bin\gcloud.cmd"
+
+# Load environment variables from the .env file (backend/.env)
+$envFile = Join-Path $PSScriptRoot ".env"
+if (-not (Test-Path $envFile)) {
+    Write-Error "[ERROR] .env file not found at $envFile. Aborting deployment."
+    exit 1
+}
+
+# Parse key=value pairs, ignore comments and empty lines
+$envVars = @()
+Get-Content $envFile | ForEach-Object {
+    $line = $_.Trim()
+    if ($line -eq "" -or $line.StartsWith("#")) { return }
+    $kv = $line -split "=", 2
+    if ($kv.Length -eq 2) {
+        $envVars += "$($kv[0])=$($kv[1])"
+    }
+}
+$envVarsString = $envVars -join ","
+
+# Configuration values (must match .env definitions)
+$PROJECT_ID = "accountomation"
+$SERVICE_NAME = "slaycount-backend"
+$REGION = "asia-southeast1"
+$IMAGE_NAME = "gcr.io/$PROJECT_ID/$SERVICE_NAME:latest"
+$INSTANCE_CONNECTION = "accountomation:asia-southeast1:accountomation-instance"
+
+# ------------------------------------------------------------
+# 1. Authenticate using the service account JSON provided in the repo
+# ------------------------------------------------------------
+$svcKeyPath = Join-Path $PSScriptRoot "service-account.json"
+if (-not (Test-Path $svcKeyPath)) {
+    Write-Error "[ERROR] Service account key not found at $svcKeyPath. Aborting."
+    exit 1
+}
+Write-Host "[AUTH] Activating service account..." -ForegroundColor Cyan
+& $gcloud auth activate-service-account --key-file=`"$svcKeyPath`"
+
+# Set the active project
+Write-Host "[CONFIG] Setting active project to $PROJECT_ID..." -ForegroundColor Cyan
+& $gcloud config set project $PROJECT_ID
+
+# ------------------------------------------------------------
+# 2. Build Docker image using Cloud Build (server‑side)
+# ------------------------------------------------------------
+Write-Host "[BUILD] Submitting Cloud Build to build image $IMAGE_NAME..." -ForegroundColor Cyan
+& $gcloud builds submit --tag $IMAGE_NAME .
+
+# ------------------------------------------------------------
+# 3. Deploy to Cloud Run, attaching Cloud SQL instance and env vars
+# ------------------------------------------------------------
+Write-Host "[DEPLOY] Deploying to Cloud Run (service $SERVICE_NAME)..." -ForegroundColor Cyan
+& $gcloud run deploy $SERVICE_NAME `
+    --image $IMAGE_NAME `
+    --platform managed `
+    --region $REGION `
+    --allow-unauthenticated `
+    --add-cloudsql-instances $INSTANCE_CONNECTION `
+    --set-env-vars $envVarsString `
+    --timeout=300 `
+    --memory=512Mi
+
+Write-Host "[DONE] Deployment script completed." -ForegroundColor Green

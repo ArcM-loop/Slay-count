@@ -3,3 +3,5 @@ node_modules/
 .env
 *.log
 npm-debug.log*
+service-account.json
+.gcloud-sdk/

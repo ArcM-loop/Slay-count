@@ -111,7 +111,7 @@ import {
   IndustryBenchmarkAgent, 
   ProductLifeCycleAgent, 
   ExpansionScoutAgent, 
-  M&A_EvaluatorAgent 
+  MnA_EvaluatorAgent 
 } from './agents/cfo/marketGroup.js';
 import { 
   SolvencyWatchAgent, 
@@ -156,7 +156,7 @@ const agents = [
   WorkingCapitalAgent, UnitEconomicsAgent, BudgetGuardAgent, VarianceForensicAgent,
   ZeroBasedAuditorAgent, RollingForecastAgent, ScenarioBuilderAgent, CapExPlannerAgent,
   MarketTrendAgent, CompetitorPricingAgent, IndustryBenchmarkAgent, ProductLifeCycleAgent,
-  ExpansionScoutAgent, M&A_EvaluatorAgent, SolvencyWatchAgent, AltmanZScoreAgent,
+  ExpansionScoutAgent, MnA_EvaluatorAgent, SolvencyWatchAgent, AltmanZScoreAgent,
   EnterpriseValueAgent, SensitivityAnalystAgent, ESG_ComplianceAgent, DividendPolicyAgent,
   StrategicExitAgent
 ];

@@ -3,8 +3,7 @@
  * Agen intelijen yang memantau perubahan hukum & standar akuntansi.
  */
 
-import { log } from '@/lib/logger'; // [CVE-6 Fixed by Herta]
-
+const log = (...args) => console.log('[RegulatoryScout]', ...args);
 export const RegulatoryScoutAgent = {
   name: 'RegulatoryScout',
   tier: 2, // Bertindak sebagai Arbitrator karena memiliki pengetahuan hukum terbaru

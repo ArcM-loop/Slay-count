@@ -8,10 +8,11 @@
  * Backend yang memanggil Gemini dengan key yang aman.
  */
 
-const express = require('express');
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
+
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const rateLimit = require('express-rate-limit');
 
 // Ambil konfigurasi dari .env (AMAN — tidak pernah terekspos ke browser)
 const API_KEYS = [
@@ -125,4 +126,5 @@ router.post('/generate', requireAuth, aiLimiter, async (req, res) => {
   res.status(502).json({ error: 'Layanan AI tidak tersedia saat ini. Silakan coba lagi.' });
 });
 
-module.exports = router;
+export default router;
+

@@ -11,8 +11,8 @@
  * 4. Verdict: Keputusan akhir dengan Confidence Score & Audit Trail.
  */
 
-import { callGemini, callLlama, callGPT } from './multiModelGateway';
-import { callWorkerSwarm, callAuditorSwarm, callCFOSwarm, getSwarmUsageStats } from './geminiSwarmGateway';
+import { callGemini, callLlama, callGPT } from './multiModelGateway.js';
+import { callWorkerSwarm, callAuditorSwarm, callCFOSwarm, getSwarmUsageStats } from './geminiSwarmGateway.js';
 import { ConsensusArbitrator } from './agents/meta/consensusArbitrator.js';
 
 export class SwarmOrchestrator {

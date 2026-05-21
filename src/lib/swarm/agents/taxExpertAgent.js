@@ -4,7 +4,7 @@
  * Mengetahui detail UU HPP, UU PPh, dan UU PPN.
  */
 
-import { log } from '@/lib/logger'; // [CVE-6 Fixed by Herta]
+const log = (...args) => console.log('[TaxExpert]', ...args);
 
 export const TaxExpertAgent = {
   name: 'TaxExpert',

@@ -3,7 +3,7 @@
  * Menangani PPh 26, P3B (Tax Treaty), dan Form DGT.
  */
 
-import { log } from '@/lib/logger'; // [CVE-6 Fixed by Herta]
+const log = (...args) => console.log('[TreatyMaster]', ...args);
 
 export const TreatyMasterAgent = {
   name: 'TreatyMaster',

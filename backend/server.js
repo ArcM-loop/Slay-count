@@ -1,11 +1,13 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet'); // [CVE-7] Security Headers
-const authRoutes = require('./routes/authRoutes');
-const aiRoutes = require('./routes/aiRoutes'); // [CVE-2] Secure AI Proxy
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import { rateLimit } from 'express-rate-limit';
+import helmet from 'helmet';
+import authRoutes from './routes/authRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
+import journalRoutes from './routes/journalRoutes.js';
+import auditRoutes from './routes/auditRoutes.js';
 
 const app = express();
 
@@ -59,7 +61,8 @@ const authLimiter = rateLimit({
 
 app.use('/auth', authLimiter, authRoutes);
 app.use('/api/ai', aiRoutes); // [CVE-2] Semua panggilan AI lewat proxy aman ini
-
+app.use('/api/journal', journalRoutes);
+app.use('/api/audit', auditRoutes);
 
 // [CVE-8] Global Error Handler — cegah stack trace bocor ke client
 app.use((err, req, res, next) => {
@@ -70,10 +73,12 @@ app.use((err, req, res, next) => {
 });
 
 app.get('/', (req, res) => {
-  res.send('SlayCount API — Secured by Madam Herta 🛡️');
+  res.send('SlayCount API — Secured by Madam Herta 🛡️ | Firebase Admin SDK: ACTIVE');
 });
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`🛡️  Security headers: Helmet ACTIVE`);
+  console.log(`🔐  CORS origin: ${process.env.ALLOWED_ORIGIN || 'http://localhost:5173'}`);
 });

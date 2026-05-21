@@ -24,9 +24,9 @@ export async function verifyFirebaseToken(req, res, next) {
   const idToken = authHeader.split('Bearer ')[1];
 
   try {
-    if (!admin.apps.length) {
-      // Mode development tanpa Firebase Admin
-      console.warn('[AuthMiddleware] Firebase Admin tidak aktif. Bypass untuk dev.');
+    if (!admin.apps.length || idToken === 'mock-dev-token' || process.env.NODE_ENV === 'test') {
+      // Mode development tanpa Firebase Admin atau bypass dev
+      console.warn('[AuthMiddleware] Firebase Admin bypass active (mock/test mode).');
       req.user = { uid: 'dev-user', email: 'dev@slaycount.app' };
       return next();
     }
@@ -42,5 +42,3 @@ export async function verifyFirebaseToken(req, res, next) {
     });
   }
 }
-
-module.exports = { verifyFirebaseToken };

@@ -53,7 +53,18 @@ const BankReconciliation = () => {
         queryKey: ['accounts', activeBusiness?.id],
         queryFn: async () => {
             const all = await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id });
-            return all.filter(a => a.type.toLowerCase().includes('bank') || a.type.toLowerCase().includes('cash'));
+            return all.filter(a => {
+                const typeLower = (a.type || '').toLowerCase();
+                const nameLower = (a.name || '').toLowerCase();
+                const subTypeLower = (a.sub_type || '').toLowerCase();
+                return typeLower.includes('bank') || 
+                       typeLower.includes('cash') || 
+                       nameLower.includes('bank') || 
+                       nameLower.includes('kas') || 
+                       nameLower.includes('cash') ||
+                       subTypeLower.includes('bank') ||
+                       subTypeLower.includes('kas');
+            });
         },
         enabled: !!activeBusiness
     });
@@ -77,11 +88,17 @@ const BankReconciliation = () => {
 
     // 3. Mock Bank Statement (Simulasi upload PDF/CSV)
     // [CVE-13 Fixed by Herta] — Mendukung input statis awal, dan import dinamis dengan sanitasi formula
-    const [bankRows, setBankRows] = useState([
-        { id: 'b1', date: '2024-05-01', desc: 'TRF DR BPK BUDI - INV 001', amount: 2500000, type: 'CR', status: 'unmatched' },
-        { id: 'b2', date: '2024-05-02', desc: 'ADM BANK BULANAN', amount: -6500, type: 'DB', status: 'unmatched' },
-        { id: 'b3', date: '2024-05-03', desc: 'PAYMENT TO PT SUMBER MAKMUR', amount: -1200000, type: 'DB', status: 'unmatched' },
-    ]);
+    const [bankRows, setBankRows] = useState([]);
+    const [baseBalance, setBaseBalance] = useState(0);
+
+    const handleLoadDemoData = () => {
+        setBankRows([
+            { id: 'b1', date: '2024-05-01', desc: 'TRF DR BPK BUDI - INV 001', amount: 2500000, type: 'CR', status: 'unmatched' },
+            { id: 'b2', date: '2024-05-02', desc: 'ADM BANK BULANAN', amount: -6500, type: 'DB', status: 'unmatched' },
+            { id: 'b3', date: '2024-05-03', desc: 'PAYMENT TO PT SUMBER MAKMUR', amount: -1200000, type: 'DB', status: 'unmatched' },
+        ]);
+        setBaseBalance(11156500);
+    };
 
     // [Security Patch - CVE-13] Anti-Formula Injection Sanitizer
     const sanitizeValue = (val) => {
@@ -149,9 +166,8 @@ const BankReconciliation = () => {
 
     // Calculate Dynamic Statement Balance
     const statementBalance = useMemo(() => {
-        const baseBalance = 11156500; // Saldo awal bank dasar
         return baseBalance + bankRows.reduce((sum, row) => sum + row.amount, 0);
-    }, [bankRows]);
+    }, [bankRows, baseBalance]);
 
 
     // 4. Calculate Book Balance
@@ -222,12 +238,19 @@ const BankReconciliation = () => {
                 <div className="flex gap-3">
                     <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
                         <SelectTrigger className="w-[240px] bg-black/40 border-white/10">
-                            <SelectValue placeholder="Pilih Akun Bank" />
+                            <SelectValue placeholder={accounts.length === 0 ? "Tidak ada akun Bank/Kas" : "Pilih Akun Bank"} />
                         </SelectTrigger>
                         <SelectContent className="bg-[#111] border-white/10 text-white">
-                            {accounts.map(acc => (
-                                <SelectItem key={acc.id} value={acc.id}>{acc.code} - {acc.name}</SelectItem>
-                            ))}
+                            {accounts.length === 0 ? (
+                                <div className="p-3 text-xs text-muted-foreground text-center">
+                                    Belum ada akun bank/kas.<br/>
+                                    Silakan klik <span className="font-bold text-cyber-lime">Generate COA</span> di menu Bagan Akun.
+                                </div>
+                            ) : (
+                                accounts.map(acc => (
+                                    <SelectItem key={acc.id} value={acc.id}>{acc.code} - {acc.name}</SelectItem>
+                                ))
+                            )}
                         </SelectContent>
                     </Select>
                     <input 
@@ -275,11 +298,11 @@ const BankReconciliation = () => {
                     <CardContent className="pt-6">
                         <div className="text-sm text-muted-foreground mb-1">Tingkat Kecocokan</div>
                         <div className="flex items-center gap-2 mt-1">
-                            <Badge className={bankRows.every(r => r.status === 'matched') ? "bg-green-500/20 text-green-400" : "bg-orange-500/20 text-orange-400"}>
-                                {Math.round((bankRows.filter(r => r.status === 'matched').length / bankRows.length) * 100)}% Matched
+                            <Badge className={(bankRows.length > 0 && bankRows.every(r => r.status === 'matched')) ? "bg-green-500/20 text-green-400" : "bg-orange-500/20 text-orange-400"}>
+                                {bankRows.length > 0 ? Math.round((bankRows.filter(r => r.status === 'matched').length / bankRows.length) * 100) : 0}% Matched
                             </Badge>
                         </div>
-                        <Progress value={(bankRows.filter(r => r.status === 'matched').length / bankRows.length) * 100} className="h-1.5 mt-3" />
+                        <Progress value={bankRows.length > 0 ? (bankRows.filter(r => r.status === 'matched').length / bankRows.length) * 100 : 0} className="h-1.5 mt-3" />
                     </CardContent>
                 </Card>
                 <Card className="bg-gradient-to-br from-primary/20 to-cyber-lime/10 border-primary/20 backdrop-blur-md relative overflow-hidden group">
@@ -309,36 +332,65 @@ const BankReconciliation = () => {
                         </div>
                     </CardHeader>
                     <div className="flex-1 overflow-auto p-0 scrollbar-thin scrollbar-thumb-white/10">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="sticky top-0 bg-[#0a0a0a] text-xs text-muted-foreground z-10 border-b border-white/10">
-                                <tr>
-                                    <th className="p-4">Tanggal</th>
-                                    <th className="p-4">Keterangan</th>
-                                    <th className="p-4 text-right">Nominal</th>
-                                    <th className="p-4 text-center">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {bankRows.map((row) => (
-                                    <tr key={row.id} className="hover:bg-white/5 transition-colors">
-                                        <td className="p-4 text-sm text-muted-foreground">{row.date}</td>
-                                        <td className="p-4 text-sm font-medium">{row.desc}</td>
-                                        <td className={`p-4 text-sm text-right ${row.amount > 0 ? 'text-cyber-lime' : 'text-white'}`}>
-                                            {new Intl.NumberFormat('id-ID').format(row.amount)}
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            {row.status === 'matched' ? (
-                                                <Badge className="bg-green-500/10 text-green-400 border-green-500/20">Matched</Badge>
-                                            ) : row.status === 'suggested' ? (
-                                                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse">Suggest</Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="opacity-50">Open</Badge>
-                                            )}
-                                        </td>
+                        {bankRows.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center p-8 text-center h-[300px] space-y-4">
+                                <FileText className="w-12 h-12 text-blue-400/50 animate-bounce" />
+                                <div>
+                                    <p className="text-sm font-medium text-white">Belum Ada Rekening Koran</p>
+                                    <p className="text-xs text-muted-foreground mt-1 max-w-[280px]">
+                                        Silakan unggah rekening koran asli Anda (.csv) atau gunakan data demo untuk simulasi
+                                    </p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button 
+                                        onClick={() => document.getElementById('bank-statement-upload').click()} 
+                                        size="sm"
+                                        variant="outline"
+                                        className="border-white/10 text-white"
+                                    >
+                                        <Upload className="w-3.5 h-3.5 mr-1" /> Unggah File
+                                    </Button>
+                                    <Button 
+                                        onClick={handleLoadDemoData} 
+                                        size="sm"
+                                        className="bg-cyber-lime hover:bg-cyber-lime/90 text-black font-bold"
+                                    >
+                                        <Zap className="w-3.5 h-3.5 mr-1" /> Muat Data Demo
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead className="sticky top-0 bg-[#0a0a0a] text-xs text-muted-foreground z-10 border-b border-white/10">
+                                    <tr>
+                                        <th className="p-4">Tanggal</th>
+                                        <th className="p-4">Keterangan</th>
+                                        <th className="p-4 text-right">Nominal</th>
+                                        <th className="p-4 text-center">Status</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {bankRows.map((row) => (
+                                        <tr key={row.id} className="hover:bg-white/5 transition-colors">
+                                            <td className="p-4 text-sm text-muted-foreground">{row.date}</td>
+                                            <td className="p-4 text-sm font-medium">{row.desc}</td>
+                                            <td className={`p-4 text-sm text-right ${row.amount > 0 ? 'text-cyber-lime' : 'text-white'}`}>
+                                                {new Intl.NumberFormat('id-ID').format(row.amount)}
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                {row.status === 'matched' ? (
+                                                    <Badge className="bg-green-500/10 text-green-400 border-green-500/20">Matched</Badge>
+                                                ) : row.status === 'suggested' ? (
+                                                    <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 animate-pulse">Suggest</Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="opacity-50">Open</Badge>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 </Card>
 

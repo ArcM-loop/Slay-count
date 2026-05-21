@@ -1,0 +1,23 @@
+# Exclude local node modules and build outputs
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Exclude local environment files and credentials
+.env
+.env.local
+.env.development
+.env.test
+service-account.json
+
+# Exclude developer documentation and git metadata
+.git/
+.gitignore
+.github/
+README.md
+Dockerfile
+.dockerignore
+deploy.sh
+test_*.js
+scratch/
