@@ -73,8 +73,12 @@ app.get('/api', (req, res) => {
 });
 
 // Catch-all route untuk React (harus diletakkan di bagian paling bawah setelah semua route API)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/auth')) {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  } else {
+    next();
+  }
 });
 
 const PORT = process.env.PORT || 5000;
