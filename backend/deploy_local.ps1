@@ -12,14 +12,18 @@ if (-not (Test-Path $envFile)) {
     exit 1
 }
 
-# Parse key=value pairs, ignore comments and empty lines
+# Parse key=value pairs, ignore comments and empty lines, skip reserved vars like PORT
 $envVars = @()
 Get-Content $envFile | ForEach-Object {
     $line = $_.Trim()
     if ($line -eq "" -or $line.StartsWith("#")) { return }
     $kv = $line -split "=", 2
     if ($kv.Length -eq 2) {
-        $envVars += "$($kv[0])=$($kv[1])"
+        $key = $kv[0].Trim()
+        $val = $kv[1].Trim()
+        if ($key -ne "PORT") {
+            $envVars += "$key=$val"
+        }
     }
 }
 $envVarsString = $envVars -join ","
@@ -28,19 +32,19 @@ $envVarsString = $envVars -join ","
 $PROJECT_ID = "accountomation"
 $SERVICE_NAME = "slaycount-backend"
 $REGION = "asia-southeast1"
-$IMAGE_NAME = "gcr.io/$PROJECT_ID/$SERVICE_NAME:latest"
+$IMAGE_NAME = "gcr.io/$PROJECT_ID/${SERVICE_NAME}:latest"
 $INSTANCE_CONNECTION = "accountomation:asia-southeast1:accountomation-instance"
 
 # ------------------------------------------------------------
 # 1. Authenticate using the service account JSON provided in the repo
 # ------------------------------------------------------------
-$svcKeyPath = Join-Path $PSScriptRoot "service-account.json"
-if (-not (Test-Path $svcKeyPath)) {
-    Write-Error "[ERROR] Service account key not found at $svcKeyPath. Aborting."
-    exit 1
-}
-Write-Host "[AUTH] Activating service account..." -ForegroundColor Cyan
-& $gcloud auth activate-service-account --key-file=`"$svcKeyPath`"
+# $svcKeyPath = Join-Path $PSScriptRoot "service-account.json"
+# if (-not (Test-Path $svcKeyPath)) {
+#     Write-Error "[ERROR] Service account key not found at $svcKeyPath. Aborting."
+#     exit 1
+# }
+# Write-Host "[AUTH] Activating service account..." -ForegroundColor Cyan
+# & $gcloud auth activate-service-account --key-file=`"$svcKeyPath`"
 
 # Set the active project
 Write-Host "[CONFIG] Setting active project to $PROJECT_ID..." -ForegroundColor Cyan
