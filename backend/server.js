@@ -8,29 +8,25 @@ import authRoutes from './routes/authRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import journalRoutes from './routes/journalRoutes.js';
 import auditRoutes from './routes/auditRoutes.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const app = express();
 
 // Konfigurasi Trust Proxy (Penting untuk deployment di Render/Vercel)
 app.set('trust proxy', 1);
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve file statis frontend (React/Vite)
+app.use(express.static(path.join(__dirname, 'dist')));
+
 // [CVE-7 Fixed by Herta] — HTTP Security Headers
-// Helmet secara otomatis memasang 11 header keamanan sekaligus, termasuk:
-// - X-Frame-Options: Cegah Clickjacking
-// - X-Content-Type-Options: Cegah MIME Sniffing
-// - Strict-Transport-Security: Paksa HTTPS
-// - X-XSS-Protection: Proteksi dasar XSS
-// - Content-Security-Policy: Batasi sumber script/style yang boleh dijalankan
+// Helmet secara otomatis memasang 11 header keamanan sekaligus
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://identitytoolkit.googleapis.com", "https://securetoken.googleapis.com"]
-    }
-  }
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
 }));
 
 // [CVE-2 Fixed] Restricted CORS — hanya izinkan frontend SlayCount
@@ -72,8 +68,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.get('/', (req, res) => {
+app.get('/api', (req, res) => {
   res.send('SlayCount API — Secured by Madam Herta 🛡️ | Firebase Admin SDK: ACTIVE');
+});
+
+// Catch-all route untuk React (harus diletakkan di bagian paling bawah setelah semua route API)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 const PORT = process.env.PORT || 5000;
