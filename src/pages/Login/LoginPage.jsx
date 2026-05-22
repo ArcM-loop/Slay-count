@@ -2,12 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { useAuth } from '@/lib/AuthContext';
+import { getRedirectResult } from 'firebase/auth';
+import { auth } from '@/lib/firebaseConfig';
 
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const { isAuthenticated, isLoadingAuth } = useAuth();
+
+  // Handle redirect result when user comes back from Google login
+  useEffect(() => {
+    const handleRedirect = async () => {
+      try {
+        setLoading(true);
+        const result = await getRedirectResult(auth);
+        if (result) {
+          navigate('/');
+        }
+      } catch (err) {
+        setError(err.message || 'Terjadi kesalahan saat login dengan Google.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    handleRedirect();
+  }, [navigate]);
 
   useEffect(() => {
     if (!isLoadingAuth && isAuthenticated) {
@@ -19,16 +39,10 @@ const LoginPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await GoogleGenerativeAI.auth.loginWithGoogle();
-      if (error) throw error;
-
-      // [CVE-5 Fixed by Herta] Token tidak disimpan di localStorage.
-      // Autentikasi sepenuhnya dikelola oleh Firebase Auth + HttpOnly Cookie dari backend.
-      // PrivateRoute akan memverifikasi status login via endpoint /auth/verify.
-      navigate('/');
+      await GoogleGenerativeAI.auth.loginWithGoogle();
+      // Page will redirect to Google, no need to navigate here
     } catch (err) {
       setError(err.message || 'Terjadi kesalahan saat menghubungkan ke Google.');
-    } finally {
       setLoading(false);
     }
   };

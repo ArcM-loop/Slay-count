@@ -8,7 +8,7 @@
  */
 
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 // Firebase config — client config ini memang harus ada di browser (bukan secret)
@@ -31,10 +31,25 @@ export const googleProvider = new GoogleAuthProvider();
 
 export const loginWithGoogle = async () => {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return { authenticated: true, user: result.user };
+    await signInWithRedirect(auth, googleProvider);
+    // After redirect, the page reloads. getRedirectResult handles the result.
+    return { authenticated: false, user: null };
   } catch (error) {
     console.error("Login failed:", error);
+    throw error;
+  }
+};
+
+// Handle redirect result on page load
+export const handleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      return { authenticated: true, user: result.user };
+    }
+    return null;
+  } catch (error) {
+    console.error("Redirect result error:", error);
     throw error;
   }
 };

@@ -1,6 +1,6 @@
 import { getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit as firestoreLimit, writeBatch, collection } from "firebase/firestore";
 import { auth, db } from '../lib/firebaseConfig';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut } from "firebase/auth";
 
 export { auth, db };
 
@@ -22,8 +22,8 @@ export const GoogleGenerativeAI = {
     },
     loginWithGoogle: async () => {
       try {
-        const result = await signInWithPopup(auth, googleProvider);
-        return { data: result.user, error: null };
+        await signInWithRedirect(auth, googleProvider);
+        return { data: null, error: null };
       } catch (error) {
         return { data: null, error };
       }
