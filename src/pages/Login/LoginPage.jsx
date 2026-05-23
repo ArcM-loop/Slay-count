@@ -15,15 +15,13 @@ const LoginPage = () => {
   useEffect(() => {
     const handleRedirect = async () => {
       try {
-        setLoading(true);
         const result = await getRedirectResult(auth);
         if (result) {
           navigate('/');
         }
       } catch (err) {
+        console.error('Firebase redirect result error:', err);
         setError(err.message || 'Terjadi kesalahan saat login dengan Google.');
-      } finally {
-        setLoading(false);
       }
     };
     handleRedirect();

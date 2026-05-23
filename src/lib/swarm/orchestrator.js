@@ -72,7 +72,34 @@ export class SwarmOrchestrator {
         deepResults = [...llamaResults, ...gptResults];
     }
 
-    const allResults = [...fastResults, ...deepResults];
+    // 3.5. RUN PROGRAMMATIC AGENT VALIDATIONS (.run method)
+    const programmaticResults = [];
+    for (const agent of this.agents) {
+      if (typeof agent.run === 'function') {
+        try {
+          log(`[MiroFish] Running programmatic agent validation for ${agent.name}...`);
+          const progResult = await agent.run(payload, context);
+          if (progResult) {
+            programmaticResults.push({
+              agent: agent.name,
+              status: progResult.status || 'APPROVED',
+              message: progResult.message || '',
+              weight: progResult.weight !== undefined ? progResult.weight : 1.0
+            });
+          }
+        } catch (e) {
+          error(`[MiroFish] Programmatic agent ${agent.name} failed:`, e.message);
+          programmaticResults.push({
+            agent: agent.name,
+            status: 'REJECTED',
+            message: `Pemeriksaan internal ${agent.name} gagal secara teknis: ${e.message}`,
+            weight: 1.0
+          });
+        }
+      }
+    }
+
+    const allResults = [...fastResults, ...deepResults, ...programmaticResults];
     let consensus = this.calculateConsensus(allResults);
 
     // 4. TIER 3: JUDICIAL ARBITRATION (Final Verdict)

@@ -36,7 +36,7 @@ const STYLES = {
     },
   },
   currency: {
-    numFmt: '#,##0;[Red](#,##0);"-"',
+    numFmt: '"Rp "#,##0;[Red]("-Rp "#,##0);"-"',
     alignment: { horizontal: 'right' },
   },
   title: {

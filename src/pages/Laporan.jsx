@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Download, FileSpreadsheet, Printer, ShieldCheck, LayoutDashboard } from 'lucide-react';
 import { exportFullAccountingExcel } from '@/lib/excelExporter';
+import { ExportSwarm } from '@/lib/swarm/exportOrchestrator';
 import { useQueryClient } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -49,14 +50,52 @@ export default function Laporan() {
   const handleExport = async () => {
     setExporting(true);
     const period = `${MONTHS[parseInt(month) - 1]} ${year}`;
-    await exportFullAccountingExcel({
-      businessName: activeBusiness.name,
-      period,
+    
+    // Hitung total debit/kredit untuk audit integritas matematika
+    const totalDebit = journalEntries.reduce((sum, e) => sum + (e.debit || 0), 0);
+    const totalCredit = journalEntries.reduce((sum, e) => sum + (e.credit || 0), 0);
+    
+    const swarmPayload = {
+      type: 'EXCEL_ACCOUNTING',
+      business_npwp: activeBusiness?.npwp,
+      business_name: activeBusiness?.name,
       transactions: periodTx,
-      journalEntries,
-      accounts,
-    });
-    setExporting(false);
+      summary: {
+        totalAmount: periodTx.reduce((sum, t) => sum + (t.amount || 0), 0),
+        totalDebit,
+        totalCredit
+      }
+    };
+
+    try {
+      toast.loading("Swarm Agent sedang memeriksa kelayakan data laporan keuangan...", { id: 'swarm-audit' });
+      const audit = await ExportSwarm.execute(swarmPayload);
+      
+      if (!audit.isFinal) {
+        toast.error(`Audit Swarm Menolak Ekspor: ${audit.objections.join(', ')}`, { id: 'swarm-audit', duration: 5000 });
+        setExporting(false);
+        return;
+      }
+
+      if (audit.objections.length > 0) {
+        // Terdapat warning/advis butuh persetujuan/perhatian
+        toast.warning(`Audit Lolos dengan Peringatan: ${audit.objections.join(', ')}`, { id: 'swarm-audit', duration: 6000 });
+      } else {
+        toast.success("Swarm Audit Lolos! Semua data visual, matematika, dan pajak 100% aman.", { id: 'swarm-audit' });
+      }
+
+      await exportFullAccountingExcel({
+        businessName: activeBusiness.name,
+        period,
+        transactions: periodTx,
+        journalEntries,
+        accounts,
+      });
+    } catch (err) {
+      toast.error(`Terjadi kesalahan sistem saat audit swarm: ${err.message}`, { id: 'swarm-audit' });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const periodKey = `${year}-${month}`;
