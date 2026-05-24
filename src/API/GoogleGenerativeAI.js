@@ -1,10 +1,22 @@
 import { getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit as firestoreLimit, writeBatch, collection } from "firebase/firestore";
 import { auth, db } from '../lib/firebaseConfig';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import {
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  GoogleAuthProvider,
+  signOut,
+  browserLocalPersistence,
+  setPersistence,
+} from "firebase/auth";
 
 export { auth, db };
 
 const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope('email');
+googleProvider.addScope('profile');
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export const GoogleGenerativeAI = {
   auth: {
@@ -20,20 +32,71 @@ export const GoogleGenerativeAI = {
     login: async (email, password) => {
       return await signInWithEmailAndPassword(auth, email, password);
     },
+
+    /**
+     * Login Google — Popup dulu, fallback ke redirect jika diblokir browser.
+     * Kompatibel dengan Firebase Hosting, Cloud Run, dan localhost.
+     */
     loginWithGoogle: async () => {
+      // Pastikan sesi tersimpan secara permanen di browser
+      await setPersistence(auth, browserLocalPersistence);
+
       try {
+        // === STRATEGI 1: Popup ===
         const result = await signInWithPopup(auth, googleProvider);
         return { data: result.user, error: null };
-      } catch (error) {
-        if (error.code === 'auth/popup-closed-by-user') {
-          return { data: null, error: new Error('Login dibatalkan oleh pengguna.') };
+      } catch (popupError) {
+        const code = popupError.code;
+
+        // Popup diblokir → fallback ke redirect
+        if (code === 'auth/popup-blocked') {
+          console.warn('[Auth] Popup diblokir, beralih ke redirect...');
+          try {
+            await signInWithRedirect(auth, googleProvider);
+            // Halaman akan reload, hasil ditangkap oleh handleRedirectResult
+            return { data: null, error: null, redirecting: true };
+          } catch (redirectError) {
+            return { data: null, error: redirectError };
+          }
         }
+
+        // User tutup popup sendiri
+        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+          return { data: null, error: new Error('Login dibatalkan. Silakan coba lagi.') };
+        }
+
+        // Domain belum didaftarkan
+        if (code === 'auth/unauthorized-domain') {
+          const currentDomain = window.location.hostname;
+          return {
+            data: null,
+            error: new Error(
+              `Domain "${currentDomain}" belum didaftarkan di Firebase. Tambahkan di: Firebase Console → Authentication → Settings → Authorized domains.`
+            ),
+          };
+        }
+
+        return { data: null, error: popupError };
+      }
+    },
+
+    /**
+     * Tangani hasil redirect (dipanggil di LoginPage saat halaman load)
+     */
+    handleRedirectResult: async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          return { data: result.user, error: null };
+        }
+        return { data: null, error: null };
+      } catch (error) {
         return { data: null, error };
       }
     },
+
     logout: async () => {
       await signOut(auth);
-      // [CVE-5 Fixed] Tidak ada localStorage token yang perlu dihapus
     },
     waitForAuth: () => {
       return new Promise((resolve) => {
@@ -66,7 +129,6 @@ export const GoogleGenerativeAI = {
 function createFirebaseEntity(tableName) {
   const colRef = collection(db, tableName);
 
-  // [CVE-3 Helper] Ambil user yang sedang login dengan aman
   async function getCurrentUser() {
     let user = auth.currentUser;
     if (!user) user = await GoogleGenerativeAI.auth.waitForAuth();
@@ -81,7 +143,7 @@ function createFirebaseEntity(tableName) {
       const constraints = [where('user_id', '==', user.uid)];
       
       Object.entries(criteria).forEach(([key, value]) => {
-        if (key !== 'user_id') { // Cegah override user_id dari luar
+        if (key !== 'user_id') {
           constraints.push(where(key, '==', value));
         }
       });
@@ -138,9 +200,7 @@ function createFirebaseEntity(tableName) {
 
       const data = snapshot.data();
 
-      // IDOR Prevention: Pastikan dokumen ini milik user yang sedang login
       if (data.user_id && data.user_id !== user.uid) {
-        // Jangan bocorkan info bahwa dokumen ada — samakan response dengan "not found"
         throw new Error('Dokumen tidak ditemukan.');
       }
 
@@ -152,7 +212,7 @@ function createFirebaseEntity(tableName) {
 
       const dataToSave = {
         ...payload,
-        user_id: user.uid, // Selalu override dengan user yang login — tidak bisa dimanipulasi
+        user_id: user.uid,
         created_at: payload.created_at || new Date().toISOString()
       };
       
@@ -165,16 +225,14 @@ function createFirebaseEntity(tableName) {
       const user = await getCurrentUser();
       const docRef = doc(db, tableName, id);
 
-      // Ambil dulu untuk verifikasi kepemilikan
       const existing = await getDoc(docRef);
       if (!existing.exists()) throw new Error('Dokumen tidak ditemukan.');
 
       const existingData = existing.data();
       if (existingData.user_id && existingData.user_id !== user.uid) {
-        throw new Error('Dokumen tidak ditemukan.'); // Jangan bocorkan info eksistensi
+        throw new Error('Dokumen tidak ditemukan.');
       }
 
-      // Pastikan user_id tidak bisa diubah lewat payload
       const { user_id, ...safePayload } = payload;
 
       await updateDoc(docRef, safePayload);
@@ -187,13 +245,12 @@ function createFirebaseEntity(tableName) {
       const user = await getCurrentUser();
       const docRef = doc(db, tableName, id);
 
-      // Ambil dulu untuk verifikasi kepemilikan
       const existing = await getDoc(docRef);
       if (!existing.exists()) throw new Error('Dokumen tidak ditemukan.');
 
       const existingData = existing.data();
       if (existingData.user_id && existingData.user_id !== user.uid) {
-        throw new Error('Dokumen tidak ditemukan.'); // Jangan bocorkan info eksistensi
+        throw new Error('Dokumen tidak ditemukan.');
       }
 
       await deleteDoc(docRef);
@@ -209,7 +266,7 @@ function createFirebaseEntity(tableName) {
         const newDocRef = doc(collection(db, tableName));
         const dataToSave = {
           ...item,
-          user_id: user.uid, // Selalu override — tidak bisa dimanipulasi
+          user_id: user.uid,
           created_at: item.created_at || new Date().toISOString()
         };
         batch.set(newDocRef, dataToSave);

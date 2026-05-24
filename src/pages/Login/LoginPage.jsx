@@ -2,15 +2,36 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { useAuth } from '@/lib/AuthContext';
-import { auth } from '@/lib/firebaseConfig';
 
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [statusMsg, setStatusMsg] = useState(null);
   const navigate = useNavigate();
   const { isAuthenticated, isLoadingAuth } = useAuth();
 
-  // Redirect jika sudah terautentikasi
+  // ✅ Handle hasil redirect jika popup sebelumnya diblokir browser
+  useEffect(() => {
+    const checkRedirect = async () => {
+      setStatusMsg('Memeriksa sesi login...');
+      try {
+        const { data, error: redirectError } = await GoogleGenerativeAI.auth.handleRedirectResult();
+        if (data) {
+          // Redirect berhasil — onAuthStateChanged akan handle navigasi
+          setStatusMsg('Login berhasil! Mengalihkan...');
+        } else if (redirectError) {
+          setError(redirectError.message || 'Terjadi kesalahan saat login.');
+        }
+      } catch (err) {
+        // Tidak ada pending redirect, ini normal
+      } finally {
+        setStatusMsg(null);
+      }
+    };
+    checkRedirect();
+  }, []);
+
+  // ✅ Navigasi otomatis saat Firebase konfirmasi login berhasil
   useEffect(() => {
     if (!isLoadingAuth && isAuthenticated) {
       navigate('/');
@@ -20,41 +41,85 @@ const LoginPage = () => {
   const handleLogin = async () => {
     setLoading(true);
     setError(null);
+    setStatusMsg('Membuka jendela login Google...');
+
     try {
-      const { data, error: loginError } = await GoogleGenerativeAI.auth.loginWithGoogle();
-      
-      if (loginError) {
-        setError(loginError.message || 'Terjadi kesalahan saat menghubungkan ke Google.');
-        setLoading(false);
+      const { data, error: loginError, redirecting } = await GoogleGenerativeAI.auth.loginWithGoogle();
+
+      if (redirecting) {
+        // Popup diblokir, sedang redirect — biarkan halaman reload sendiri
+        setStatusMsg('Mengalihkan ke Google...');
+        return; // jangan setLoading(false), biarkan loading sampai redirect
       }
-      // Jika berhasil, onAuthStateChanged di AuthContext akan menangani navigasi
+
+      if (loginError) {
+        setError(loginError.message || 'Terjadi kesalahan saat login.');
+        setLoading(false);
+        setStatusMsg(null);
+        return;
+      }
+
+      if (data) {
+        // Login popup berhasil — onAuthStateChanged di AuthContext akan set isAuthenticated
+        // useEffect di atas akan navigate ke '/'
+        setStatusMsg('Login berhasil! Mengalihkan...');
+      } else {
+        setLoading(false);
+        setStatusMsg(null);
+      }
     } catch (err) {
-      setError(err.message || 'Terjadi kesalahan saat menghubungkan ke Google.');
+      setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.');
       setLoading(false);
+      setStatusMsg(null);
     }
   };
+
+  // Tampilkan loading spinner saat auth sedang dicek
+  if (isLoadingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex flex-col justify-center items-center p-4">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 text-sm">Memeriksa sesi login...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col justify-center items-center p-4">
       <div className="bg-gray-900 p-8 rounded-xl shadow-2xl border border-gray-800 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Slay<span className="text-indigo-500">Count</span></h1>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Slay<span className="text-indigo-500">Count</span>
+          </h1>
           <p className="text-gray-400">Masuk untuk mengelola keuangan Anda secara profesional</p>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded-lg mb-6 text-sm text-center">
+          <div className="bg-red-500/10 border border-red-500 text-red-400 p-3 rounded-lg mb-6 text-sm text-center">
             {error}
           </div>
         )}
 
+        {statusMsg && !error && (
+          <div className="bg-indigo-500/10 border border-indigo-500 text-indigo-400 p-3 rounded-lg mb-6 text-sm text-center flex items-center justify-center gap-2">
+            <div className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+            {statusMsg}
+          </div>
+        )}
+
         <button
+          id="btn-login-google"
           onClick={handleLogin}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-gray-900 font-semibold py-3 px-4 rounded-lg transition-all duration-200"
+          className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-gray-900 font-semibold py-3 px-4 rounded-lg transition-all duration-200"
         >
           {loading ? (
-            <span className="text-gray-500">Memproses...</span>
+            <span className="text-gray-500 flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+              Memproses...
+            </span>
           ) : (
             <>
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -80,8 +145,8 @@ const LoginPage = () => {
           )}
         </button>
 
-        <p className="text-gray-500 text-xs text-center mt-6">
-          Sistem autentikasi mandiri SlayCount dilengkapi dengan keamanan mutakhir termasuk RLS dan proteksi token berbatas waktu.
+        <p className="text-gray-600 text-xs text-center mt-6">
+          Sistem autentikasi SlayCount — Bekerja dari Firebase Hosting &amp; Cloud Run
         </p>
       </div>
     </div>
