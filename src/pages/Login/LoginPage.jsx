@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { useAuth } from '@/lib/AuthContext';
-import { getRedirectResult } from 'firebase/auth';
 import { auth } from '@/lib/firebaseConfig';
 
 const LoginPage = () => {
@@ -11,22 +10,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isLoadingAuth } = useAuth();
 
-  // Handle redirect result when user comes back from Google login
-  useEffect(() => {
-    const handleRedirect = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          navigate('/');
-        }
-      } catch (err) {
-        console.error('Firebase redirect result error:', err);
-        setError(err.message || 'Terjadi kesalahan saat login dengan Google.');
-      }
-    };
-    handleRedirect();
-  }, [navigate]);
-
+  // Redirect jika sudah terautentikasi
   useEffect(() => {
     if (!isLoadingAuth && isAuthenticated) {
       navigate('/');
@@ -37,8 +21,13 @@ const LoginPage = () => {
     setLoading(true);
     setError(null);
     try {
-      await GoogleGenerativeAI.auth.loginWithGoogle();
-      // Page will redirect to Google, no need to navigate here
+      const { data, error: loginError } = await GoogleGenerativeAI.auth.loginWithGoogle();
+      
+      if (loginError) {
+        setError(loginError.message || 'Terjadi kesalahan saat menghubungkan ke Google.');
+        setLoading(false);
+      }
+      // Jika berhasil, onAuthStateChanged di AuthContext akan menangani navigasi
     } catch (err) {
       setError(err.message || 'Terjadi kesalahan saat menghubungkan ke Google.');
       setLoading(false);

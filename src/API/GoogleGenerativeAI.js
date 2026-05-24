@@ -1,6 +1,6 @@
 import { getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit as firestoreLimit, writeBatch, collection } from "firebase/firestore";
 import { auth, db } from '../lib/firebaseConfig';
-import { signInWithEmailAndPassword, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 
 export { auth, db };
 
@@ -22,9 +22,12 @@ export const GoogleGenerativeAI = {
     },
     loginWithGoogle: async () => {
       try {
-        await signInWithRedirect(auth, googleProvider);
-        return { data: null, error: null };
+        const result = await signInWithPopup(auth, googleProvider);
+        return { data: result.user, error: null };
       } catch (error) {
+        if (error.code === 'auth/popup-closed-by-user') {
+          return { data: null, error: new Error('Login dibatalkan oleh pengguna.') };
+        }
         return { data: null, error };
       }
     },

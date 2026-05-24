@@ -8,7 +8,7 @@
  */
 
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 // Firebase config — client config ini memang harus ada di browser (bukan secret)
@@ -31,10 +31,13 @@ export const googleProvider = new GoogleAuthProvider();
 
 export const loginWithGoogle = async () => {
   try {
-    await signInWithRedirect(auth, googleProvider);
-    // After redirect, the page reloads. getRedirectResult handles the result.
-    return { authenticated: false, user: null };
+    const result = await signInWithPopup(auth, googleProvider);
+    return { authenticated: true, user: result.user };
   } catch (error) {
+    if (error.code === 'auth/popup-closed-by-user') {
+      console.warn('Login dibatalkan oleh pengguna.');
+      return { authenticated: false, user: null, error: 'Login dibatalkan oleh pengguna.' };
+    }
     console.error("Login failed:", error);
     throw error;
   }
@@ -42,16 +45,7 @@ export const loginWithGoogle = async () => {
 
 // Handle redirect result on page load
 export const handleRedirectResult = async () => {
-  try {
-    const result = await getRedirectResult(auth);
-    if (result) {
-      return { authenticated: true, user: result.user };
-    }
-    return null;
-  } catch (error) {
-    console.error("Redirect result error:", error);
-    throw error;
-  }
+  return null;
 };
 
 export const checkAuthStatus = () => {
