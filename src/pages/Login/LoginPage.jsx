@@ -7,6 +7,11 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [statusMsg, setStatusMsg] = useState(null);
+  
+  // State untuk Email & Password Fallback
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  
   const navigate = useNavigate();
   const { isAuthenticated, isLoadingAuth } = useAuth();
 
@@ -17,7 +22,6 @@ const LoginPage = () => {
       try {
         const { data, error: redirectError } = await GoogleGenerativeAI.auth.handleRedirectResult();
         if (data) {
-          // Redirect berhasil — onAuthStateChanged akan handle navigasi
           setStatusMsg('Login berhasil! Mengalihkan...');
         } else if (redirectError) {
           setError(redirectError.message || 'Terjadi kesalahan saat login.');
@@ -38,8 +42,8 @@ const LoginPage = () => {
     }
   }, [isAuthenticated, isLoadingAuth, navigate]);
 
-  const handleLogin = async () => {
-    if (loading) return; // Mencegah klik ganda yang memicu pembatalan otomatis Firebase
+  const handleGoogleLogin = async () => {
+    if (loading) return; 
     
     setLoading(true);
     setError(null);
@@ -49,9 +53,8 @@ const LoginPage = () => {
       const { data, error: loginError, redirecting } = await GoogleGenerativeAI.auth.loginWithGoogle();
 
       if (redirecting) {
-        // Popup diblokir, sedang redirect — biarkan halaman reload sendiri
         setStatusMsg('Mengalihkan ke Google...');
-        return; // jangan setLoading(false), biarkan loading sampai redirect
+        return; 
       }
 
       if (loginError) {
@@ -62,8 +65,6 @@ const LoginPage = () => {
       }
 
       if (data) {
-        // Login popup berhasil — onAuthStateChanged di AuthContext akan set isAuthenticated
-        // useEffect di atas akan navigate ke '/'
         setStatusMsg('Login berhasil! Mengalihkan...');
       } else {
         setLoading(false);
@@ -71,6 +72,41 @@ const LoginPage = () => {
       }
     } catch (err) {
       setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.');
+      setLoading(false);
+      setStatusMsg(null);
+    }
+  };
+
+  const handleEmailLogin = async (e) => {
+    e.preventDefault();
+    if (loading) return;
+    
+    if (!email || !password) {
+      setError('Email dan password harus diisi.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setStatusMsg('Mencoba masuk...');
+
+    try {
+      await GoogleGenerativeAI.auth.login(email, password);
+      setStatusMsg('Login berhasil! Mengalihkan...');
+      // onAuthStateChanged akan menangani navigasi setelah ini
+    } catch (err) {
+      console.error("Email login error:", err);
+      // Format error Firebase agar lebih ramah
+      let errorMsg = 'Terjadi kesalahan saat login.';
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        errorMsg = 'Email atau kata sandi salah.';
+      } else if (err.code === 'auth/invalid-email') {
+        errorMsg = 'Format email tidak valid.';
+      } else {
+        errorMsg = err.message;
+      }
+      
+      setError(errorMsg);
       setLoading(false);
       setStatusMsg(null);
     }
@@ -111,13 +147,55 @@ const LoginPage = () => {
           </div>
         )}
 
+        {/* Form Login Email & Password (Bypass Cloud Run Proxy issues) */}
+        <form onSubmit={handleEmailLogin} className="flex flex-col gap-4 mb-6">
+          <div>
+            <label className="block text-gray-400 text-sm mb-1" htmlFor="email">Email Juri / Pengguna</label>
+            <input 
+              id="email"
+              type="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="juri@slaycount.com"
+              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-3 outline-none focus:border-indigo-500 transition-colors"
+              disabled={loading}
+            />
+          </div>
+          <div>
+            <label className="block text-gray-400 text-sm mb-1" htmlFor="password">Kata Sandi</label>
+            <input 
+              id="password"
+              type="password" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-3 outline-none focus:border-indigo-500 transition-colors"
+              disabled={loading}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading || !email || !password}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 disabled:text-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 mt-2"
+          >
+            {loading && email ? 'Memproses...' : 'Masuk dengan Email'}
+          </button>
+        </form>
+
+        <div className="relative flex items-center py-2 mb-6">
+          <div className="flex-grow border-t border-gray-700"></div>
+          <span className="flex-shrink-0 mx-4 text-gray-500 text-sm">Atau lanjutkan dengan</span>
+          <div className="flex-grow border-t border-gray-700"></div>
+        </div>
+
         <button
+          type="button"
           id="btn-login-google"
-          onClick={handleLogin}
+          onClick={handleGoogleLogin}
           disabled={loading}
           className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-gray-900 font-semibold py-3 px-4 rounded-lg transition-all duration-200"
         >
-          {loading ? (
+          {loading && !email ? (
             <span className="text-gray-500 flex items-center gap-2">
               <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
               Memproses...
@@ -142,13 +220,13 @@ const LoginPage = () => {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              Login with Google
+              Google
             </>
           )}
         </button>
 
         <p className="text-gray-600 text-xs text-center mt-6">
-          Sistem autentikasi SlayCount — Bekerja dari Firebase Hosting &amp; Cloud Run
+          Gunakan Email untuk akses yang dijamin lancar (Bypass sistem proxy Google Cloud)
         </p>
       </div>
     </div>
