@@ -39,6 +39,8 @@ const LoginPage = () => {
   }, [isAuthenticated, isLoadingAuth, navigate]);
 
   const handleLogin = async () => {
+    if (loading) return; // Mencegah klik ganda yang memicu pembatalan otomatis Firebase
+    
     setLoading(true);
     setError(null);
     setStatusMsg('Membuka jendela login Google...');
