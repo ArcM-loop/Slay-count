@@ -8,34 +8,31 @@ const LoginPage = () => {
   const [error, setError] = useState(null);
   const [statusMsg, setStatusMsg] = useState(null);
   
-  // State untuk Email & Password Fallback
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  
   const navigate = useNavigate();
   const { isAuthenticated, isLoadingAuth } = useAuth();
 
-  // ✅ Handle hasil redirect jika popup sebelumnya diblokir browser
+  // ✅ Handle hasil redirect jika user baru saja kembali dari Google Auth flow
   useEffect(() => {
     const checkRedirect = async () => {
-      setStatusMsg('Memeriksa sesi login...');
+      setStatusMsg('Memproses hasil login dari Google...');
       try {
         const { data, error: redirectError } = await GoogleGenerativeAI.auth.handleRedirectResult();
         if (data) {
           setStatusMsg('Login berhasil! Mengalihkan...');
+          navigate('/');
         } else if (redirectError) {
           setError(redirectError.message || 'Terjadi kesalahan saat login.');
         }
       } catch (err) {
-        // Tidak ada pending redirect, ini normal
+        console.error("Redirect check error:", err);
       } finally {
         setStatusMsg(null);
       }
     };
     checkRedirect();
-  }, []);
+  }, [navigate]);
 
-  // ✅ Navigasi otomatis saat Firebase konfirmasi login berhasil
+  // ✅ Navigasi otomatis jika sudah authenticated
   useEffect(() => {
     if (!isLoadingAuth && isAuthenticated) {
       navigate('/');
@@ -47,66 +44,18 @@ const LoginPage = () => {
     
     setLoading(true);
     setError(null);
-    setStatusMsg('Membuka jendela login Google...');
+    setStatusMsg('Mengalihkan ke Google...');
 
     try {
-      const { data, error: loginError, redirecting } = await GoogleGenerativeAI.auth.loginWithGoogle();
-
-      if (redirecting) {
-        setStatusMsg('Mengalihkan ke Google...');
-        return; 
-      }
+      const { error: loginError } = await GoogleGenerativeAI.auth.loginWithGoogle();
 
       if (loginError) {
         setError(loginError.message || 'Terjadi kesalahan saat login.');
         setLoading(false);
         setStatusMsg(null);
-        return;
-      }
-
-      if (data) {
-        setStatusMsg('Login berhasil! Mengalihkan...');
-      } else {
-        setLoading(false);
-        setStatusMsg(null);
       }
     } catch (err) {
       setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.');
-      setLoading(false);
-      setStatusMsg(null);
-    }
-  };
-
-  const handleEmailLogin = async (e) => {
-    e.preventDefault();
-    if (loading) return;
-    
-    if (!email || !password) {
-      setError('Email dan password harus diisi.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setStatusMsg('Mencoba masuk...');
-
-    try {
-      await GoogleGenerativeAI.auth.login(email, password);
-      setStatusMsg('Login berhasil! Mengalihkan...');
-      // onAuthStateChanged akan menangani navigasi setelah ini
-    } catch (err) {
-      console.error("Email login error:", err);
-      // Format error Firebase agar lebih ramah
-      let errorMsg = 'Terjadi kesalahan saat login.';
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        errorMsg = 'Email atau kata sandi salah.';
-      } else if (err.code === 'auth/invalid-email') {
-        errorMsg = 'Format email tidak valid.';
-      } else {
-        errorMsg = err.message;
-      }
-      
-      setError(errorMsg);
       setLoading(false);
       setStatusMsg(null);
     }
@@ -147,58 +96,17 @@ const LoginPage = () => {
           </div>
         )}
 
-        {/* Form Login Email & Password (Bypass Cloud Run Proxy issues) */}
-        <form onSubmit={handleEmailLogin} className="flex flex-col gap-4 mb-6">
-          <div>
-            <label className="block text-gray-400 text-sm mb-1" htmlFor="email">Email Juri / Pengguna</label>
-            <input 
-              id="email"
-              type="email" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="juri@slaycount.com"
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-3 outline-none focus:border-indigo-500 transition-colors"
-              disabled={loading}
-            />
-          </div>
-          <div>
-            <label className="block text-gray-400 text-sm mb-1" htmlFor="password">Kata Sandi</label>
-            <input 
-              id="password"
-              type="password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg p-3 outline-none focus:border-indigo-500 transition-colors"
-              disabled={loading}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading || !email || !password}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 disabled:text-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 mt-2"
-          >
-            {loading && email ? 'Memproses...' : 'Masuk dengan Email'}
-          </button>
-        </form>
-
-        <div className="relative flex items-center py-2 mb-6">
-          <div className="flex-grow border-t border-gray-700"></div>
-          <span className="flex-shrink-0 mx-4 text-gray-500 text-sm">Atau lanjutkan dengan</span>
-          <div className="flex-grow border-t border-gray-700"></div>
-        </div>
-
         <button
           type="button"
           id="btn-login-google"
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-gray-900 font-semibold py-3 px-4 rounded-lg transition-all duration-200"
+          className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-gray-900 font-semibold py-4 px-4 rounded-lg transition-all duration-200 shadow-md"
         >
-          {loading && !email ? (
+          {loading ? (
             <span className="text-gray-500 flex items-center gap-2">
               <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-              Memproses...
+              Menghubungkan...
             </span>
           ) : (
             <>
@@ -220,14 +128,10 @@ const LoginPage = () => {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              Google
+              Masuk dengan Google
             </>
           )}
         </button>
-
-        <p className="text-gray-600 text-xs text-center mt-6">
-          Gunakan Email untuk akses yang dijamin lancar (Bypass sistem proxy Google Cloud)
-        </p>
       </div>
     </div>
   );

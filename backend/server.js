@@ -26,7 +26,8 @@ app.use(express.static(path.join(__dirname, 'dist')));
 // Helmet secara otomatis memasang 11 header keamanan sekaligus
 app.use(helmet({
   contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" } // ✅ INI KUNCI RAHASIANYA! Buka blokir komunikasi popup Google Login di Cloud Run
 }));
 
 // [CVE-2 Fixed] Restricted CORS — hanya izinkan frontend SlayCount

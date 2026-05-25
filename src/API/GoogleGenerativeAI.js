@@ -29,54 +29,21 @@ export const GoogleGenerativeAI = {
         });
       });
     },
-    login: async (email, password) => {
-      return await signInWithEmailAndPassword(auth, email, password);
-    },
-
     /**
-     * Login Google — Popup dulu, fallback ke redirect jika diblokir browser.
-     * Kompatibel dengan Firebase Hosting, Cloud Run, dan localhost.
+     * Login Google — Menggunakan Redirect secara eksklusif agar kompatibel penuh
+     * dengan Cloud Run & Firebase Hosting lintas-domain.
      */
     loginWithGoogle: async () => {
       // Pastikan sesi tersimpan secara permanen di browser
       await setPersistence(auth, browserLocalPersistence);
 
       try {
-        // === STRATEGI 1: Popup ===
-        const result = await signInWithPopup(auth, googleProvider);
-        return { data: result.user, error: null };
-      } catch (popupError) {
-        const code = popupError.code;
-
-        // Popup diblokir → fallback ke redirect
-        if (code === 'auth/popup-blocked') {
-          console.warn('[Auth] Popup diblokir, beralih ke redirect...');
-          try {
-            await signInWithRedirect(auth, googleProvider);
-            // Halaman akan reload, hasil ditangkap oleh handleRedirectResult
-            return { data: null, error: null, redirecting: true };
-          } catch (redirectError) {
-            return { data: null, error: redirectError };
-          }
-        }
-
-        // User tutup popup sendiri
-        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-          return { data: null, error: new Error('Login dibatalkan. Silakan coba lagi.') };
-        }
-
-        // Domain belum didaftarkan
-        if (code === 'auth/unauthorized-domain') {
-          const currentDomain = window.location.hostname;
-          return {
-            data: null,
-            error: new Error(
-              `Domain "${currentDomain}" belum didaftarkan di Firebase. Tambahkan di: Firebase Console → Authentication → Settings → Authorized domains.`
-            ),
-          };
-        }
-
-        return { data: null, error: popupError };
+        await signInWithRedirect(auth, googleProvider);
+        // Halaman akan reload/redirect, hasil ditangkap oleh handleRedirectResult
+        return { data: null, error: null, redirecting: true };
+      } catch (error) {
+        console.error('[Auth] Error login redirect:', error);
+        return { data: null, error };
       }
     },
 

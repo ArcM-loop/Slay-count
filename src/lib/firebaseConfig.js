@@ -26,10 +26,10 @@ import { getFirestore } from "firebase/firestore";
 // Firebase config — client config ini memang harus ada di browser (bukan secret)
 // "accountomation" adalah nama Firebase Project yang benar untuk SlayCount
 const firebaseConfig = {
-  apiKey: "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g",
-  authDomain: "accountomation.firebaseapp.com",
-  projectId: "accountomation",
-  storageBucket: "accountomation.firebasestorage.app",
+  apiKey: "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g", 
+  authDomain: "slaycount-825422475013.firebaseapp.com",
+  projectId: "slaycount-825422475013",
+  storageBucket: "slaycount-825422475013.appspot.com",
   messagingSenderId: "825422475013",
   appId: "1:825422475013:web:8cf09b6a53aac97838516c",
   measurementId: "G-6GR6FE8W90",
@@ -62,44 +62,12 @@ export const loginWithGoogle = async () => {
   await setPersistence(auth, browserLocalPersistence);
 
   try {
-    // === STRATEGI 1: Popup (ideal untuk semua platform) ===
-    const result = await signInWithPopup(auth, googleProvider);
-    return { authenticated: true, user: result.user };
-  } catch (popupError) {
-    const code = popupError.code;
-
-    // Jika popup diblokir browser → fallback ke redirect
-    if (code === 'auth/popup-blocked') {
-      console.warn('[Auth] Popup diblokir, beralih ke redirect...');
-      try {
-        await signInWithRedirect(auth, googleProvider);
-        // Halaman akan redirect, hasil ditangani oleh handleRedirectResult()
-        return { authenticated: false, user: null, redirecting: true };
-      } catch (redirectError) {
-        return { authenticated: false, user: null, error: redirectError.message };
-      }
-    }
-
-    // Jika user menutup popup sendiri
-    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-      console.warn('[Auth] Login dibatalkan oleh pengguna.');
-      return { authenticated: false, user: null, error: 'Login dibatalkan. Silakan coba lagi.' };
-    }
-
-    // Jika domain Cloud Run belum ditambahkan ke Firebase authorized domains
-    if (code === 'auth/unauthorized-domain') {
-      const currentDomain = window.location.hostname;
-      console.error(`[Auth] Domain tidak diizinkan: ${currentDomain}`);
-      return {
-        authenticated: false,
-        user: null,
-        error: `Domain "${currentDomain}" belum didaftarkan di Firebase Console. Tambahkan di: Authentication → Settings → Authorized domains.`,
-      };
-    }
-
-    // Error lainnya
-    console.error('[Auth] Error login:', popupError);
-    return { authenticated: false, user: null, error: popupError.message };
+    // Gunakan Redirect secara langsung agar kompatibel penuh dengan Cloud Run & Firebase Hosting
+    await signInWithRedirect(auth, googleProvider);
+    return { authenticated: false, user: null, redirecting: true };
+  } catch (error) {
+    console.error('[Auth] Error login redirect:', error);
+    return { authenticated: false, user: null, error: error.message };
   }
 };
 
