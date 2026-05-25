@@ -18,6 +18,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     console.log('[AuthContext] Memulai pengawasan status autentikasi...');
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Set loading true setiap kali ada perubahan status untuk menjamin sinkronisasi
+      setIsLoadingAuth(true);
       console.log('[AuthContext] onAuthStateChanged terpicu:', firebaseUser ? 'User terdeteksi' : 'Tidak ada user');
 
       if (firebaseUser) {

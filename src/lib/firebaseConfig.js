@@ -24,7 +24,7 @@ import { getFirestore } from "firebase/firestore";
 // "accountomation" adalah nama Firebase Project yang benar untuk SlayCount
 const firebaseConfig = {
   apiKey: "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g", 
-  authDomain: "slaycount-825422475013.asia-southeast2.run.app",
+  authDomain: "accountomation.firebaseapp.com",
   projectId: "slaycount-825422475013",
   storageBucket: "slaycount-825422475013.appspot.com",
   messagingSenderId: "825422475013",

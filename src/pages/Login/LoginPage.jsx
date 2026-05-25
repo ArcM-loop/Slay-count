@@ -31,7 +31,8 @@ const LoginPage = () => {
 
       if (data) {
         setStatusMsg('Login berhasil! Mengalihkan...');
-        navigate('/');
+        // Navigasi tidak perlu manual di sini, akan ditangani oleh useEffect di atas
+        // saat AuthContext selesai memproses user.
       } else if (loginError) {
         setError(loginError.message || 'Terjadi kesalahan saat login.');
         setLoading(false);
