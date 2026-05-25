@@ -25,6 +25,14 @@ service cloud.firestore {
     // KOLEKSI UTAMA — Akses normal (baca & tulis via client)
     // ═══════════════════════════════════════════════════════════════
 
+    match /user_roles/{userId} {
+      allow read:   if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Admin/Developer roles hanya bisa diupdate via backend/admin console
+      allow update: if false;
+      allow delete: if false;
+    }
+
     match /businesses/{docId} {
       allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
       allow create: if isValidOwner();

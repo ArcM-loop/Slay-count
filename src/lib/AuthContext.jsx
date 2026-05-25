@@ -31,7 +31,16 @@ export function AuthProvider({ children }) {
           console.log('[AuthContext] Mengambil role dari Firestore...');
           // [CVE-1 Fixed by Herta] — Role disimpan & ditarik dari Firestore, bukan localStorage
           const roleDocRef = doc(db, 'user_roles', firebaseUser.uid);
-          const roleDoc = await getDoc(roleDocRef);
+
+          // Gunakan timeout agar tidak stuck jika Firestore lambat/bermasalah
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Firestore timeout')), 5000)
+          );
+
+          const roleDoc = await Promise.race([
+            getDoc(roleDocRef),
+            timeoutPromise
+          ]);
           
           let userRole = 'user';
           let realRole = 'user';
