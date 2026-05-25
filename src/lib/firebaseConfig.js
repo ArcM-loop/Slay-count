@@ -5,9 +5,8 @@
  * File ini hanya me-re-export agar import lama (dari lib/firebaseConfig) tetap bekerja.
  *
  * [BUGFIX] Menggunakan getApps() guard agar tidak ada duplikasi initializeApp.
- * [AUTH FIX] Sistem login cerdas: popup-first → redirect fallback
- *   - Bekerja dari Firebase Hosting (accountomation.firebaseapp.com)
- *   - Bekerja dari Cloud Run (*.run.app atau domain kustom)
+ * [AUTH FIX] Menggunakan signInWithPopup (Cara The Herta)
+ *   - Memanfaatkan header backend COOP: same-origin-allow-popups
  */
 
 import { initializeApp, getApps, getApp } from "firebase/app";
@@ -15,8 +14,6 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signOut,
   browserLocalPersistence,
   setPersistence,
@@ -50,45 +47,20 @@ googleProvider.addScope('profile');
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 /**
- * Login dengan Google — Strategi Cerdas:
- * 1. Coba popup dulu (lebih cepat, tidak reload halaman)
- * 2. Jika popup diblokir browser → fallback ke redirect
- * 3. Jika domain tidak diizinkan → beri pesan error jelas
- *
- * Kompatibel dari: Firebase Hosting, Cloud Run, localhost
+ * Login dengan Google — Menggunakan Popup (Cara The Herta)
+ * Memanfaatkan header backend Cross-Origin-Opener-Policy: same-origin-allow-popups
+ * untuk menghubungkan popup login Google dengan aman.
  */
 export const loginWithGoogle = async () => {
   // Pastikan sesi tersimpan di localStorage (bukan session) agar persist
   await setPersistence(auth, browserLocalPersistence);
 
   try {
-    // Gunakan Redirect secara langsung agar kompatibel penuh dengan Cloud Run & Firebase Hosting
-    await signInWithRedirect(auth, googleProvider);
-    return { authenticated: false, user: null, redirecting: true };
+    const result = await signInWithPopup(auth, googleProvider);
+    return { authenticated: true, user: result.user };
   } catch (error) {
-    console.error('[Auth] Error login redirect:', error);
+    console.error('[Auth] Error login popup:', error);
     return { authenticated: false, user: null, error: error.message };
-  }
-};
-
-/**
- * Tangani hasil redirect jika popup sebelumnya diblokir browser
- * Dipanggil saat halaman pertama kali dimuat
- */
-export const handleRedirectResult = async () => {
-  try {
-    const result = await getRedirectResult(auth);
-    if (result?.user) {
-      return { authenticated: true, user: result.user };
-    }
-    return null;
-  } catch (error) {
-    if (error.code === 'auth/unauthorized-domain') {
-      const currentDomain = window.location.hostname;
-      console.error(`[Auth] Domain tidak diizinkan setelah redirect: ${currentDomain}`);
-    }
-    console.error('[Auth] Redirect result error:', error);
-    return null;
   }
 };
 

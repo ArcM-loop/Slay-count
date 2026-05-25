@@ -11,26 +11,6 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, isLoadingAuth } = useAuth();
 
-  // ✅ Handle hasil redirect jika user baru saja kembali dari Google Auth flow
-  useEffect(() => {
-    const checkRedirect = async () => {
-      setStatusMsg('Memproses hasil login dari Google...');
-      try {
-        const { data, error: redirectError } = await GoogleGenerativeAI.auth.handleRedirectResult();
-        if (data) {
-          setStatusMsg('Login berhasil! Mengalihkan...');
-          navigate('/');
-        } else if (redirectError) {
-          setError(redirectError.message || 'Terjadi kesalahan saat login.');
-        }
-      } catch (err) {
-        console.error("Redirect check error:", err);
-      } finally {
-        setStatusMsg(null);
-      }
-    };
-    checkRedirect();
-  }, [navigate]);
 
   // ✅ Navigasi otomatis jika sudah authenticated
   useEffect(() => {
@@ -44,12 +24,15 @@ const LoginPage = () => {
     
     setLoading(true);
     setError(null);
-    setStatusMsg('Mengalihkan ke Google...');
+    setStatusMsg('Membuka jendela login Google...');
 
     try {
-      const { error: loginError } = await GoogleGenerativeAI.auth.loginWithGoogle();
+      const { data, error: loginError } = await GoogleGenerativeAI.auth.loginWithGoogle();
 
-      if (loginError) {
+      if (data) {
+        setStatusMsg('Login berhasil! Mengalihkan...');
+        navigate('/');
+      } else if (loginError) {
         setError(loginError.message || 'Terjadi kesalahan saat login.');
         setLoading(false);
         setStatusMsg(null);
