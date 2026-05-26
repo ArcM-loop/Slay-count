@@ -25,7 +25,8 @@ export function AuthProvider({ children }) {
 
       if (firebaseUser) {
         // Optimisasi: Jangan fetch ulang jika user UID-nya masih sama (menghindari loop internal)
-        if (user?.uid === firebaseUser.uid && role) {
+        // Gunakan firebaseUser langsung karena state 'user' mungkin masih stale (closure)
+        if (auth.currentUser?.uid === firebaseUser.uid && role) {
           console.log('[AuthContext] User sama, melewati fetch role.');
           setIsLoadingAuth(false);
           setAuthChecked(true);

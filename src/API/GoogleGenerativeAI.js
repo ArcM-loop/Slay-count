@@ -31,9 +31,6 @@ export const GoogleGenerativeAI = {
      * Login Google — Menggunakan Popup (Cara The Herta)
      */
     loginWithGoogle: async () => {
-      // Pastikan sesi tersimpan secara permanen di browser
-      await setPersistence(auth, browserLocalPersistence);
-
       try {
         const result = await signInWithPopup(auth, googleProvider);
         return { data: result.user, error: null };
