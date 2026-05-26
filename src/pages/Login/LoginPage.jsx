@@ -13,13 +13,6 @@ const LoginPage = () => {
 
   console.log(`[LoginPage] State: isInitializing=${isInitializing}, isLoadingAuth=${isLoadingAuth}, isAuthenticated=${isAuthenticated}`);
 
-  // ✅ Navigasi otomatis jika sudah authenticated
-  useEffect(() => {
-    if (!isLoadingAuth && isAuthenticated) {
-      navigate('/');
-    }
-  }, [isAuthenticated, isLoadingAuth, navigate]);
-
   const handleGoogleLogin = async () => {
     if (loading) return; 
     
@@ -32,8 +25,8 @@ const LoginPage = () => {
 
       if (data) {
         setStatusMsg('Login berhasil! Mengalihkan...');
-        // Navigasi tidak perlu manual di sini, akan ditangani oleh useEffect di atas
-        // saat AuthContext selesai memproses user.
+        // Manual navigate setelah sukses untuk menghindari loop useEffect
+        navigate('/', { replace: true });
       } else if (loginError) {
         setError(loginError.message || 'Terjadi kesalahan saat login.');
         setLoading(false);
