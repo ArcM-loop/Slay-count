@@ -62,11 +62,10 @@ export const loginWithGoogle = async () => {
   await setPersistence(auth, browserLocalPersistence);
 
   try {
-    // Gunakan Redirect secara langsung agar kompatibel penuh dengan Cloud Run & Firebase Hosting
-    await signInWithRedirect(auth, googleProvider);
-    return { authenticated: false, user: null, redirecting: true };
+    const result = await signInWithPopup(auth, googleProvider);
+    return { authenticated: true, user: result.user };
   } catch (error) {
-    console.error('[Auth] Error login redirect:', error);
+    console.error('[Auth] Error login popup:', error);
     return { authenticated: false, user: null, error: error.message };
   }
 };

@@ -38,28 +38,19 @@ export const GoogleGenerativeAI = {
       await setPersistence(auth, browserLocalPersistence);
 
       try {
-        await signInWithRedirect(auth, googleProvider);
-        // Halaman akan reload/redirect, hasil ditangkap oleh handleRedirectResult
-        return { data: null, error: null, redirecting: true };
+        const result = await signInWithPopup(auth, googleProvider);
+        return { data: result.user, error: null };
       } catch (error) {
-        console.error('[Auth] Error login redirect:', error);
+        console.error('[Auth] Error login popup:', error);
         return { data: null, error };
       }
     },
 
     /**
-     * Tangani hasil redirect (dipanggil di LoginPage saat halaman load)
+     * handleRedirectResult dikosongkan karena menggunakan popup
      */
     handleRedirectResult: async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result?.user) {
-          return { data: result.user, error: null };
-        }
-        return { data: null, error: null };
-      } catch (error) {
-        return { data: null, error };
-      }
+      return { data: null, error: null };
     },
 
     logout: async () => {
