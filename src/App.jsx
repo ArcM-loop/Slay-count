@@ -32,10 +32,12 @@ const PageLoader = () => (
 );
 
 const PrivateRoute = ({ children }) => {
-  const { isAuthenticated, isLoadingAuth } = useAuth();
+  const { isAuthenticated, isLoadingAuth, isInitializing } = useAuth();
   const location = useLocation();
 
-  if (isLoadingAuth) {
+  console.log(`[PrivateRoute] State: isInitializing=${isInitializing}, isLoadingAuth=${isLoadingAuth}, isAuthenticated=${isAuthenticated}`);
+
+  if (isInitializing) {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4 text-white">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -45,6 +47,7 @@ const PrivateRoute = ({ children }) => {
   }
 
   if (!isAuthenticated) {
+    console.log('[PrivateRoute] User not authenticated, redirecting to /login');
     // Jika tidak terautentikasi di server, redirect ke login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }

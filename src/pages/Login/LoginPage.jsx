@@ -9,47 +9,25 @@ const LoginPage = () => {
   const [statusMsg, setStatusMsg] = useState(null);
   
   const navigate = useNavigate();
-  const { isAuthenticated, isLoadingAuth } = useAuth();
+  const { isAuthenticated, isLoadingAuth, isInitializing } = useAuth();
 
-  // ✅ Handle hasil redirect jika user baru saja kembali dari Google Auth flow
-  useEffect(() => {
-    const checkRedirect = async () => {
-      setStatusMsg('Memproses hasil login dari Google...');
-      try {
-        const { data, error: redirectError } = await GoogleGenerativeAI.auth.handleRedirectResult();
-        if (data) {
-          setStatusMsg('Login berhasil! Mengalihkan...');
-          navigate('/');
-        } else if (redirectError) {
-          setError(redirectError.message || 'Terjadi kesalahan saat login.');
-        }
-      } catch (err) {
-        console.error("Redirect check error:", err);
-      } finally {
-        setStatusMsg(null);
-      }
-    };
-    checkRedirect();
-  }, [navigate]);
-
-  // ✅ Navigasi otomatis jika sudah authenticated
-  useEffect(() => {
-    if (!isLoadingAuth && isAuthenticated) {
-      navigate('/');
-    }
-  }, [isAuthenticated, isLoadingAuth, navigate]);
+  console.log(`[LoginPage] State: isInitializing=${isInitializing}, isLoadingAuth=${isLoadingAuth}, isAuthenticated=${isAuthenticated}`);
 
   const handleGoogleLogin = async () => {
     if (loading) return; 
     
     setLoading(true);
     setError(null);
-    setStatusMsg('Mengalihkan ke Google...');
+    setStatusMsg('Membuka jendela login Google...');
 
     try {
-      const { error: loginError } = await GoogleGenerativeAI.auth.loginWithGoogle();
+      const { data, error: loginError } = await GoogleGenerativeAI.auth.loginWithGoogle();
 
-      if (loginError) {
+      if (data) {
+        setStatusMsg('Login berhasil! Mengalihkan...');
+        // Manual navigate setelah sukses untuk menghindari loop useEffect
+        navigate('/', { replace: true });
+      } else if (loginError) {
         setError(loginError.message || 'Terjadi kesalahan saat login.');
         setLoading(false);
         setStatusMsg(null);
@@ -61,8 +39,8 @@ const LoginPage = () => {
     }
   };
 
-  // Tampilkan loading spinner saat auth sedang dicek
-  if (isLoadingAuth) {
+  // Tampilkan loading spinner HANYA saat inisialisasi boot awal aplikasi
+  if (isInitializing) {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col justify-center items-center p-4">
         <div className="flex flex-col items-center gap-4">
@@ -100,13 +78,13 @@ const LoginPage = () => {
           type="button"
           id="btn-login-google"
           onClick={handleGoogleLogin}
-          disabled={loading}
+          disabled={loading || isLoadingAuth}
           className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-gray-900 font-semibold py-4 px-4 rounded-lg transition-all duration-200 shadow-md"
         >
-          {loading ? (
+          {(loading || isLoadingAuth) ? (
             <span className="text-gray-500 flex items-center gap-2">
               <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-              Menghubungkan...
+              {statusMsg || 'Memverifikasi...'}
             </span>
           ) : (
             <>
