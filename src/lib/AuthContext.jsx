@@ -11,6 +11,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true); // Baru: untuk memantau boot awal Firebase
   const [authChecked, setAuthChecked] = useState(false);
   const [role, setRole] = useState(null); // 'admin', 'developer', 'user'
   const [actualRole, setActualRole] = useState(null);
@@ -18,11 +19,19 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     console.log('[AuthContext] Memulai pengawasan status autentikasi...');
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      // Set loading true setiap kali ada perubahan status untuk menjamin sinkronisasi
+      // Set loading true saat proses sedang berjalan
       setIsLoadingAuth(true);
-      console.log('[AuthContext] onAuthStateChanged terpicu:', firebaseUser ? 'User terdeteksi' : 'Tidak ada user');
+      console.log('[AuthContext] onAuthStateChanged terpicu:', firebaseUser ? `User terdeteksi (${firebaseUser.email})` : 'Tidak ada user', `Initializing=${isInitializing}`);
 
       if (firebaseUser) {
+        // Optimisasi: Jangan fetch ulang jika user UID-nya masih sama (menghindari loop internal)
+        if (user?.uid === firebaseUser.uid && role) {
+          console.log('[AuthContext] User sama, melewati fetch role.');
+          setIsLoadingAuth(false);
+          setAuthChecked(true);
+          return;
+        }
+
         setUser(firebaseUser);
         setIsAuthenticated(true);
         console.log('[AuthContext] User UID:', firebaseUser.uid);
@@ -87,6 +96,7 @@ export function AuthProvider({ children }) {
 
       console.log('[AuthContext] Loading selesai, menandai authChecked = true');
       setIsLoadingAuth(false);
+      setIsInitializing(false);
       setAuthChecked(true);
     });
 
@@ -97,6 +107,7 @@ export function AuthProvider({ children }) {
     user,
     isAuthenticated,
     isLoadingAuth,
+    isInitializing,
     authChecked,
     role,
     actualRole,

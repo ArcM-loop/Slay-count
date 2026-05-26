@@ -1,5 +1,5 @@
 import { getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit as firestoreLimit, writeBatch, collection } from "firebase/firestore";
-import { auth, db } from '../lib/firebaseConfig';
+import { auth, db } from '@/lib/firebaseConfig';
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -48,6 +48,9 @@ export const GoogleGenerativeAI = {
     },
     waitForAuth: () => {
       return new Promise((resolve) => {
+        // Jika sudah ada user di instance auth, langsung balikkan
+        if (auth.currentUser) return resolve(auth.currentUser);
+
         const unsubscribe = auth.onAuthStateChanged(user => {
           unsubscribe();
           resolve(user);

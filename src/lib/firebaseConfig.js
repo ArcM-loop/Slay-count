@@ -24,7 +24,7 @@ import { getFirestore } from "firebase/firestore";
 // "accountomation" adalah nama Firebase Project yang benar untuk SlayCount
 const firebaseConfig = {
   apiKey: "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g", 
-  authDomain: "accountomation.firebaseapp.com",
+  authDomain: "slaycount-825422475013.firebaseapp.com",
   projectId: "slaycount-825422475013",
   storageBucket: "slaycount-825422475013.appspot.com",
   messagingSenderId: "825422475013",
@@ -37,6 +37,10 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Inisialisasi persistensi segera saat module dimuat
+setPersistence(auth, browserLocalPersistence).catch(console.error);
+
 export const googleProvider = new GoogleAuthProvider();
 
 // Tambahkan scope tambahan untuk mendapatkan info user yang lengkap
@@ -52,9 +56,6 @@ googleProvider.setCustomParameters({ prompt: 'select_account' });
  * untuk menghubungkan popup login Google dengan aman.
  */
 export const loginWithGoogle = async () => {
-  // Pastikan sesi tersimpan di localStorage (bukan session) agar persist
-  await setPersistence(auth, browserLocalPersistence);
-
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return { authenticated: true, user: result.user };

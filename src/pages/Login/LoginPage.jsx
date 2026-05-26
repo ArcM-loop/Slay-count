@@ -9,8 +9,9 @@ const LoginPage = () => {
   const [statusMsg, setStatusMsg] = useState(null);
   
   const navigate = useNavigate();
-  const { isAuthenticated, isLoadingAuth } = useAuth();
+  const { isAuthenticated, isLoadingAuth, isInitializing } = useAuth();
 
+  console.log(`[LoginPage] State: isInitializing=${isInitializing}, isLoadingAuth=${isLoadingAuth}, isAuthenticated=${isAuthenticated}`);
 
   // ✅ Navigasi otomatis jika sudah authenticated
   useEffect(() => {
@@ -45,8 +46,8 @@ const LoginPage = () => {
     }
   };
 
-  // Tampilkan loading spinner saat auth sedang dicek
-  if (isLoadingAuth) {
+  // Tampilkan loading spinner HANYA saat inisialisasi boot awal aplikasi
+  if (isInitializing) {
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col justify-center items-center p-4">
         <div className="flex flex-col items-center gap-4">
@@ -84,13 +85,13 @@ const LoginPage = () => {
           type="button"
           id="btn-login-google"
           onClick={handleGoogleLogin}
-          disabled={loading}
+          disabled={loading || isLoadingAuth}
           className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-gray-900 font-semibold py-4 px-4 rounded-lg transition-all duration-200 shadow-md"
         >
-          {loading ? (
+          {(loading || isLoadingAuth) ? (
             <span className="text-gray-500 flex items-center gap-2">
               <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-              Menghubungkan...
+              {statusMsg || 'Memverifikasi...'}
             </span>
           ) : (
             <>
