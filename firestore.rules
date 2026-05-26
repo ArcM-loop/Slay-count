@@ -89,5 +89,17 @@ service cloud.firestore {
       allow update: if false;  // DIBLOKIR — log tidak boleh diubah
       allow delete: if false;  // DIBLOKIR — log tidak boleh dihapus (immutable)
     }
+    // ═══════════════════════════════════════════════════════════════
+    // USER ROLES — Akses aman dengan pencegahan Privilege Escalation
+    // ═══════════════════════════════════════════════════════════════
+    match /user_roles/{uid} {
+      allow read:   if isAuthenticated() && uid == request.auth.uid;
+      // Hanya izinkan user membuat/mengupdate role mereka sendiri sebagai 'user'
+      // Perubahan ke role 'admin' atau 'developer' harus dilakukan via Firebase Console / Admin SDK
+      allow create, update: if isAuthenticated() && uid == request.auth.uid 
+                            && request.resource.data.role == 'user' 
+                            && request.resource.data.actualRole == 'user';
+      allow delete: if false;
+    }
   }
 }
