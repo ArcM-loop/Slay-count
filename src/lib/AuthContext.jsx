@@ -7,6 +7,28 @@ import { db } from './firebaseConfig';
 
 const AuthContext = createContext();
 
+// Helper untuk mencegah loading menggantung jika Firestore diblokir adblocker/jaringan lambat
+const promiseWithTimeout = (promise, ms, defaultValue = null) => {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      console.warn(`[Auth] Pembacaan Firestore melampaui batas waktu ${ms}ms. Menggunakan fallback.`);
+      resolve(defaultValue);
+    }, ms);
+    
+    promise.then(
+      (res) => {
+        clearTimeout(timer);
+        resolve(res);
+      },
+      (err) => {
+        clearTimeout(timer);
+        console.error("[Auth] Firestore error:", err);
+        resolve(defaultValue);
+      }
+    );
+  });
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -24,12 +46,14 @@ export function AuthProvider({ children }) {
         try {
           // [CVE-1 Fixed by Herta] — Role disimpan & ditarik dari Firestore, bukan localStorage
           const roleDocRef = doc(db, 'user_roles', firebaseUser.uid);
-          const roleDoc = await getDoc(roleDocRef);
+          
+          // Batasi waktu tunggu maksimal 3.5 detik agar halaman tidak stuck jika diblokir AdBlocker/koneksi buruk
+          const roleDoc = await promiseWithTimeout(getDoc(roleDocRef), 3500, null);
           
           let userRole = 'user';
           let realRole = 'user';
 
-          if (roleDoc.exists()) {
+          if (roleDoc && roleDoc.exists()) {
             const data = roleDoc.data();
             realRole = data.actualRole || data.role || 'user';
             
@@ -40,14 +64,18 @@ export function AuthProvider({ children }) {
               userRole = realRole;
               localStorage.removeItem('slaycount_simulated_role');
             }
-          } else {
-            // Auto-provisioning: Daftarkan sebagai user biasa di Firestore
-            await setDoc(roleDocRef, {
-              role: 'user',
-              actualRole: 'user',
-              email: firebaseUser.email,
-              updatedAt: new Date().toISOString()
-            });
+          } else if (roleDoc) {
+            // Auto-provisioning: Daftarkan sebagai user biasa di Firestore jika doc kosong
+            await promiseWithTimeout(
+              setDoc(roleDocRef, {
+                role: 'user',
+                actualRole: 'user',
+                email: firebaseUser.email,
+                updatedAt: new Date().toISOString()
+              }),
+              3000,
+              null
+            );
           }
 
           setActualRole(realRole);
