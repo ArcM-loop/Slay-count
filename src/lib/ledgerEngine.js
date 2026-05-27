@@ -19,17 +19,29 @@ export const computeAccountBalances = (journalEntries, accounts, upToDate) => {
     };
   });
 
-  // Sum up all journal entries
+  // Sum up all journal entries using the CORRECT field names (debit/credit)
   journalEntries.forEach(entry => {
     if (upToDate && entry.date > upToDate) return;
     
-    if (balances[entry.account_id]) {
-      if (entry.type === 'DEBIT') {
-        balances[entry.account_id].debit += entry.amount;
-      } else {
-        balances[entry.account_id].credit += entry.amount;
-      }
+    const accountId = entry.account_id;
+    if (!accountId) return; // Skip entries without account_id
+    
+    // Auto-register accounts that exist in journal but weren't in COA
+    if (!balances[accountId]) {
+      balances[accountId] = {
+        id: accountId,
+        name: entry.account_name || 'Unknown',
+        code: entry.account_code || '?',
+        type: entry.account_type || 'Aset',
+        debit: 0,
+        credit: 0,
+        endingBalance: 0
+      };
     }
+
+    // Read debit/credit fields directly (as written by journalEngine.js)
+    balances[accountId].debit += (parseFloat(entry.debit) || 0);
+    balances[accountId].credit += (parseFloat(entry.credit) || 0);
   });
 
   // Calculate ending balances based on Normal Balance

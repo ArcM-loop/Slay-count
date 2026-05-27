@@ -220,6 +220,61 @@ const BankReconciliation = () => {
         }
     };
 
+    // FIX #9: Simpan hasil recon dan buat jurnal untuk missing transactions (suggested)
+    const handleSaveReconciliation = async () => {
+        if (!matchSummary) return;
+        setIsUploading(true);
+        
+        try {
+            const newEntries = [];
+            
+            // Buat jurnal untuk baris bank yang disarankan untuk dibuat (Admin, Bunga, dll)
+            bankRows.filter(r => r.status === 'suggested').forEach(row => {
+                newEntries.push({
+                    business_id: activeBusiness.id,
+                    account_id: selectedAccountId,
+                    account_name: 'Kas/Bank',
+                    account_type: 'Aset',
+                    debit: row.amount > 0 ? row.amount : 0,
+                    credit: row.amount < 0 ? Math.abs(row.amount) : 0,
+                    description: row.desc,
+                    date: row.date,
+                    entry_type: 'bank_recon_adjustment',
+                    created_at: new Date().toISOString()
+                });
+                
+                // Jurnal lawan (Beban Admin atau Pendapatan Bunga)
+                const isExpense = row.amount < 0;
+                newEntries.push({
+                    business_id: activeBusiness.id,
+                    account_id: `auto_${isExpense ? '6-1000' : '8-1000'}`,
+                    account_name: isExpense ? 'Beban Admin Bank' : 'Pendapatan Bunga Bank',
+                    account_type: isExpense ? 'Beban' : 'Pendapatan',
+                    debit: isExpense ? Math.abs(row.amount) : 0,
+                    credit: !isExpense ? row.amount : 0,
+                    description: row.desc,
+                    date: row.date,
+                    entry_type: 'bank_recon_adjustment',
+                    created_at: new Date().toISOString()
+                });
+            });
+
+            if (newEntries.length > 0) {
+                await GoogleGenerativeAI.entities.JournalEntry.bulkCreate(newEntries);
+                queryClient.invalidateQueries({ queryKey: ['bank-journals', selectedAccountId] });
+            }
+
+            setMatchSummary(null);
+            setBankRows(prev => prev.map(r => ({ ...r, status: r.status === 'suggested' ? 'matched' : r.status })));
+            alert(`Berhasil menyimpan rekonsiliasi. ${newEntries.length / 2} jurnal penyesuaian dibuat.`);
+        } catch (err) {
+            console.error('[BankRecon] Save failed:', err);
+            alert("Gagal menyimpan hasil rekonsiliasi.");
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     const selectedAccount = accounts.find(a => a.id === selectedAccountId);
 
     return (
@@ -310,13 +365,24 @@ const BankReconciliation = () => {
                         <div className="text-sm font-bold text-cyber-lime mb-2 flex items-center gap-1">
                             <Zap className="w-4 h-4 fill-current" /> BIYO SMART RECON
                         </div>
-                        <Button 
-                            onClick={handleAutoMatch}
-                            disabled={isUploading || !selectedAccountId}
-                            className="w-full bg-cyber-lime text-black hover:bg-cyber-lime/90 font-bold"
-                        >
-                            {isUploading ? 'Matching...' : 'Jalankan Auto-Match'}
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button 
+                                onClick={handleAutoMatch}
+                                disabled={isUploading || !selectedAccountId}
+                                className="flex-1 bg-cyber-lime text-black hover:bg-cyber-lime/90 font-bold"
+                            >
+                                {isUploading ? 'Matching...' : 'Jalankan Auto-Match'}
+                            </Button>
+                            {matchSummary && (
+                                <Button 
+                                    onClick={handleSaveReconciliation}
+                                    disabled={isUploading}
+                                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+                                >
+                                    Simpan & Bukukan
+                                </Button>
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
             </div>

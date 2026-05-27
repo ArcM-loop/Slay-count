@@ -18,6 +18,8 @@ import { auditLogger } from '@/lib/auditLogger';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { isPeriodLocked, PERIOD_LOCKED_ERROR } from '@/lib/accountingValidation';
+import { visualizerStore } from '@/lib/swarm/visualizerStore';
 
 const ManualJournal = () => {
     const { activeBusiness } = useBusiness();
@@ -68,15 +70,31 @@ const ManualJournal = () => {
             return;
         }
 
+        // FIX #4a: Validasi semua baris memiliki akun
+        const emptyRows = rows.filter(r => !r.account_id);
+        if (emptyRows.length > 0) {
+            toast.error(`Ada ${emptyRows.length} baris tanpa akun. Pilih akun untuk setiap baris.`);
+            return;
+        }
+
+        // FIX #4b: Period Lock Check
+        const locked = await isPeriodLocked(date, activeBusiness.id);
+        if (locked) {
+            toast.error(PERIOD_LOCKED_ERROR);
+            return;
+        }
+
         try {
+            visualizerStore.startAction('AuditAgent', 'Memvalidasi jurnal manual...');
+
             const entries = rows.map(r => {
                 const acc = accounts.find(a => a.id === r.account_id);
                 return {
                     business_id: activeBusiness.id,
                     account_id: r.account_id,
-                    account_code: acc.code,
-                    account_name: acc.name,
-                    account_type: acc.type,
+                    account_code: acc?.code || '?',
+                    account_name: acc?.name || 'Unknown',
+                    account_type: acc?.type || 'Aset',
                     debit: Number(r.debit),
                     credit: Number(r.credit),
                     description: description || 'Manual Adjustment',
@@ -95,6 +113,7 @@ const ManualJournal = () => {
                 `Created manual journal: ${description || 'No Ref'}. Lines: ${rows.length}. Total: ${totalDebit}`
             );
 
+            visualizerStore.endAction('Jurnal manual berhasil diposting.', 3000);
             toast.success("Jurnal manual berhasil disimpan!");
             setDescription('');
             setRows([
@@ -102,6 +121,8 @@ const ManualJournal = () => {
                 { id: 2, account_id: '', debit: 0, credit: 0 },
             ]);
         } catch (error) {
+            visualizerStore.updateAction('error', 'Gagal menyimpan jurnal.');
+            setTimeout(() => visualizerStore.endAction(''), 3000);
             toast.error("Gagal menyimpan jurnal.");
         }
     };

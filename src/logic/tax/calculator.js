@@ -209,36 +209,56 @@ export function getUpcomingDeadlines(business = {}) {
 export const getTaxDeadlines = getUpcomingDeadlines;
 
 /**
- * Menghitung Net PPN (PPN Keluaran - PPN Masukan) dari daftar transaksi.
- * @param {Array} transactions - Daftar transaksi final
+ * Menghitung Net PPN (PPN Keluaran - PPN Masukan) dari daftar JURNAL (Buku Besar).
+ * @param {Array} journalEntries - Daftar jurnal final
  * @returns {{ ppnKeluaran: number, ppnMasukan: number, netPPN: number }}
  */
-export function calculateNetPPN(transactions = []) {
-  const ppnKeluaran = transactions
-    .filter(tx => tx.type === 'Pemasukan' && tx.ppn > 0)
-    .reduce((sum, tx) => sum + (parseFloat(tx.ppn) || 0), 0);
+export function calculateNetPPN(journalEntries = []) {
+  // PPN Keluaran (Normal Balance: Kredit) -> Bertambah di Kredit
+  const ppnKeluaran = journalEntries
+    .filter(j => j.account_name?.toLowerCase().includes('ppn keluaran') || j.account_name?.toLowerCase().includes('pajak keluaran'))
+    .reduce((sum, j) => sum + ((parseFloat(j.credit) || 0) - (parseFloat(j.debit) || 0)), 0);
   
-  const ppnMasukan = transactions
-    .filter(tx => tx.type === 'Pengeluaran' && tx.ppn > 0)
-    .reduce((sum, tx) => sum + (parseFloat(tx.ppn) || 0), 0);
+  // PPN Masukan (Normal Balance: Debit) -> Bertambah di Debit
+  const ppnMasukan = journalEntries
+    .filter(j => j.account_name?.toLowerCase().includes('ppn masukan') || j.account_name?.toLowerCase().includes('pajak masukan'))
+    .reduce((sum, j) => sum + ((parseFloat(j.debit) || 0) - (parseFloat(j.credit) || 0)), 0);
 
   return { ppnKeluaran, ppnMasukan, netPPN: ppnKeluaran - ppnMasukan };
 }
 
 /**
- * Merangkum semua PPh yang terpotong/dipungut dari daftar transaksi.
- * @param {Array} transactions - Daftar transaksi final
+ * Merangkum semua PPh yang terpotong/dipungut dari daftar JURNAL (Buku Besar).
+ * @param {Array} journalEntries - Daftar jurnal final
  * @returns {{ PPH_21: object, PPH_23: object, PPH_26: object }}
  */
-export function calculatePPhSummary(transactions = []) {
+export function calculatePPhSummary(journalEntries = []) {
   const summary = {};
 
-  transactions.forEach(tx => {
-    if (!tx.pph_type || tx.pph_type === 'none' || !tx.pph_amount) return;
-    const key = `PPH_${tx.pph_type.replace(/[()]/g, '').toUpperCase()}`;
-    if (!summary[key]) summary[key] = { totalTax: 0, count: 0 };
-    summary[key].totalTax += parseFloat(tx.pph_amount) || 0;
-    summary[key].count += 1;
+  journalEntries.forEach(j => {
+    const name = (j.account_name || '').toLowerCase();
+    const desc = (j.description || '').toLowerCase();
+    
+    // Cari jurnal yang berhubungan dengan Hutang PPh atau Beban PPh
+    if (name.includes('pph') || desc.includes('pph')) {
+      let type = 'none';
+      if (name.includes('21') || desc.includes('21')) type = '21';
+      else if (name.includes('23') || desc.includes('23')) type = '23';
+      else if (name.includes('26') || desc.includes('26')) type = '26';
+      else if (name.includes('final') || desc.includes('final')) type = 'FINAL';
+      
+      if (type !== 'none') {
+        const key = `PPH_${type}`;
+        if (!summary[key]) summary[key] = { totalTax: 0, count: 0 };
+        
+        // Asumsi PPh dicatat sebagai Hutang (Kredit) saat pemotongan
+        const taxAmount = (parseFloat(j.credit) || 0) - (parseFloat(j.debit) || 0);
+        if (taxAmount > 0) {
+            summary[key].totalTax += taxAmount;
+            summary[key].count += 1;
+        }
+      }
+    }
   });
 
   return summary;

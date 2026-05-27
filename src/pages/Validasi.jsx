@@ -72,6 +72,12 @@ export default function Validasi() {
     });
 
     const handleFinalize = async (tx, accountId, paymentAccountId) => {
+        // FIX #10: Cegah Finalize jika Akun atau Akun Pembayaran kosong
+        if (!accountId || !paymentAccountId) {
+            toast.error("Validasi Gagal: Akun Tujuan dan Akun Pembayaran harus diisi.");
+            return;
+        }
+
         const account = accounts.find(a => a.id === accountId);
         
         // 1. Catat Audit Log (Before-After)

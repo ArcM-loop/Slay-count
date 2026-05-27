@@ -49,6 +49,13 @@ export default function TaxCenterPage() {
     enabled: !!activeBusiness,
   });
 
+  // FIX #8: Fetch Journal Entries
+  const { data: journalEntries = [] } = useQuery({
+    queryKey: ['journal-entries', activeBusiness?.id],
+    queryFn: () => GoogleGenerativeAI.entities.JournalEntry.filter({ business_id: activeBusiness.id }, '-date', 2000),
+    enabled: !!activeBusiness,
+  });
+
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts', activeBusiness?.id],
     queryFn: () => GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id }),
@@ -56,8 +63,9 @@ export default function TaxCenterPage() {
   });
 
   const deadlines = getTaxDeadlines();
-  const ppnData = useMemo(() => calculateNetPPN(transactions), [transactions]);
-  const pphData = useMemo(() => calculatePPhSummary(transactions), [transactions]);
+  // Menggunakan journalEntries (Buku Besar) sebagai Single Source of Truth
+  const ppnData = useMemo(() => calculateNetPPN(journalEntries), [journalEntries]);
+  const pphData = useMemo(() => calculatePPhSummary(journalEntries), [journalEntries]);
   const fiscalData = useMemo(() => calculateFiscalCorrection(transactions, accounts), [transactions, accounts]);
 
   const pnlSummary = useMemo(() => {

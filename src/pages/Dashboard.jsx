@@ -24,34 +24,54 @@ export default function Dashboard() {
     enabled: !!activeBusiness,
   });
 
-  const isLoading = businessLoading || transactionsLoading;
+  // FIX #7: Fetch Journal Entries untuk Single Source of Truth
+  const { data: journalEntries = [], isLoading: journalsLoading } = useQuery({
+    queryKey: ['journal-entries', activeBusiness?.id],
+    queryFn: () => GoogleGenerativeAI.entities.JournalEntry.filter({ business_id: activeBusiness.id }, '-date', 1000),
+    enabled: !!activeBusiness,
+  });
+
+  const isLoading = businessLoading || transactionsLoading || journalsLoading;
 
   const stats = useMemo(() => {
-    const finalTx = transactions.filter(t => t.status === 'Final');
-    const income = finalTx.filter(t => t.type === 'Pemasukan').reduce((s, t) => s + t.amount, 0);
-    const expense = finalTx.filter(t => t.type === 'Pengeluaran').reduce((s, t) => s + t.amount, 0);
-    return { income, expense, net: income - expense, total: finalTx.length };
-  }, [transactions]);
+    let income = 0;
+    let expense = 0;
+    journalEntries.forEach(j => {
+        if (j.account_type === 'Pendapatan') {
+            income += (parseFloat(j.credit) || 0) - (parseFloat(j.debit) || 0);
+        } else if (j.account_type === 'Beban' || j.account_type === 'HPP') {
+            expense += (parseFloat(j.debit) || 0) - (parseFloat(j.credit) || 0);
+        }
+    });
+    return { income, expense, net: income - expense, total: transactions.filter(t => t.status === 'Final').length };
+  }, [journalEntries, transactions]);
 
   const chartData = useMemo(() => {
     const monthly = {};
-    transactions.filter(t => t.status === 'Final').forEach(t => {
-      const key = t.date?.slice(0, 7) || 'N/A';
+    journalEntries.forEach(j => {
+      const key = j.date?.slice(0, 7) || 'N/A';
       if (!monthly[key]) monthly[key] = { month: key, income: 0, expense: 0 };
-      if (t.type === 'Pemasukan') monthly[key].income += t.amount;
-      if (t.type === 'Pengeluaran') monthly[key].expense += t.amount;
+      
+      if (j.account_type === 'Pendapatan') {
+          monthly[key].income += (parseFloat(j.credit) || 0) - (parseFloat(j.debit) || 0);
+      } else if (j.account_type === 'Beban' || j.account_type === 'HPP') {
+          monthly[key].expense += (parseFloat(j.debit) || 0) - (parseFloat(j.credit) || 0);
+      }
     });
     return Object.values(monthly).sort((a, b) => a.month.localeCompare(b.month)).slice(-6);
-  }, [transactions]);
+  }, [journalEntries]);
 
   const categoryData = useMemo(() => {
     const cats = {};
-    transactions.filter(t => t.type === 'Pengeluaran' && t.status === 'Final').forEach(t => {
-      const key = t.account_name || 'Lain-lain';
-      cats[key] = (cats[key] || 0) + t.amount;
+    journalEntries.forEach(j => {
+      if (j.account_type === 'Beban' || j.account_type === 'HPP') {
+          const key = j.account_name || 'Beban Lain-lain';
+          const amt = (parseFloat(j.debit) || 0) - (parseFloat(j.credit) || 0);
+          cats[key] = (cats[key] || 0) + amt;
+      }
     });
     return Object.entries(cats).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
-  }, [transactions]);
+  }, [journalEntries]);
 
   const recentTx = transactions.slice(0, 6);
   const inboxCount = transactions.filter(t => t.status === 'Inbox').length;

@@ -281,6 +281,34 @@ function CreatePOModal({ open, onClose, businessId, existingCount, queryClient }
       notes: form.notes,
     });
 
+    // FIX #5: Buat jurnal untuk mencatat Hutang dan Persediaan
+    const entries = [{
+        business_id: businessId,
+        account_id: 'auto_1-1400',
+        account_code: '1-1400',
+        account_name: 'Persediaan Barang',
+        account_type: 'Aset',
+        debit: totalAmount,
+        credit: 0,
+        description: `PO ${poNumber} - ${form.vendor_name.trim()}`,
+        date: form.date,
+        entry_type: 'purchase_order',
+        created_at: new Date().toISOString()
+    }, {
+        business_id: businessId,
+        account_id: 'auto_2-1000',
+        account_code: '2-1000',
+        account_name: 'Hutang Usaha',
+        account_type: 'Kewajiban',
+        debit: 0,
+        credit: totalAmount,
+        description: `PO ${poNumber} - ${form.vendor_name.trim()}`,
+        date: form.date,
+        entry_type: 'purchase_order',
+        created_at: new Date().toISOString()
+    }];
+    await GoogleGenerativeAI.entities.JournalEntry.bulkCreate(entries);
+
     queryClient.invalidateQueries({ queryKey: ['purchase-orders', businessId] });
     setSaving(false);
     // Reset

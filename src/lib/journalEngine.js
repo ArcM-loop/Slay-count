@@ -249,56 +249,33 @@ export async function validateJournalWithSwarm(journalEntry, context = {}) {
  * @param {string} paymentAccountId - ID akun kas/bank
  */
 export async function createJournalEntries(tx, accounts, paymentAccountId) {
-  console.log('[JournalEngine] Creating Atomic Journal Entries (ACID)...');
+  console.log('[JournalEngine] Creating Compound Journal Entries (ACID)...');
   
   const batch = writeBatch(db);
   const user = auth.currentUser;
   
   if (!user) throw new Error('User not authenticated for journaling');
 
-  // 1. Persiapkan Referensi Dokumen
   const journalRef = collection(db, 'journal_entries');
   const txRef = doc(db, 'transactions', tx.id);
-  
-  const debitDocRef = doc(journalRef);
-  const creditDocRef = doc(journalRef);
 
-  const amount = parseFloat(tx.amount);
+  const dpp = parseFloat(tx.dpp || tx.amount || 0);
+  const ppnAmount = parseFloat(tx.ppn || 0);
+  const pphAmount = parseFloat(tx.pph_amount || 0);
+  const totalKas = dpp + ppnAmount - pphAmount; // Uang yang benar-benar keluar/masuk kas
+
   const account = accounts.find(a => a.id === tx.account_id);
   const paymentAccount = accounts.find(a => a.id === paymentAccountId);
 
-  // 2. Tentukan sisi Debit & Kredit berdasarkan tipe transaksi
-  let debitEntry, creditEntry;
+  // Helper: Cari atau buat referensi akun pajak
+  const findTaxAccount = (keywords, fallbackName, fallbackCode, fallbackType) => {
+    const found = accounts.find(a => keywords.some(k => a.name?.toLowerCase().includes(k)));
+    return found || { id: `auto_${fallbackCode}`, name: fallbackName, code: fallbackCode, type: fallbackType };
+  };
 
-  if (tx.type === 'Pengeluaran') {
-    // Beban (Dr) - Kas/Bank (Cr)
-    debitEntry = {
-      account_id: tx.account_id,
-      account_name: account?.name || 'Unknown Expense',
-      debit: amount,
-      credit: 0
-    };
-    creditEntry = {
-      account_id: paymentAccountId,
-      account_name: paymentAccount?.name || 'Unknown Cash/Bank',
-      debit: 0,
-      credit: amount
-    };
-  } else {
-    // Kas/Bank (Dr) - Pendapatan (Cr)
-    debitEntry = {
-      account_id: paymentAccountId,
-      account_name: paymentAccount?.name || 'Unknown Cash/Bank',
-      debit: amount,
-      credit: 0
-    };
-    creditEntry = {
-      account_id: tx.account_id,
-      account_name: account?.name || 'Unknown Revenue',
-      debit: 0,
-      credit: amount
-    };
-  }
+  const ppnMasukanAcc = findTaxAccount(['ppn masukan', 'pajak masukan', 'vat input'], 'PPN Masukan', '1-1700', 'Aset');
+  const ppnKeluaranAcc = findTaxAccount(['ppn keluaran', 'pajak keluaran', 'vat output'], 'PPN Keluaran', '2-1700', 'Kewajiban');
+  const hutangPPhAcc = findTaxAccount(['hutang pph', 'pph terutang'], `Hutang PPh ${tx.pph_type || ''}`, '2-1800', 'Kewajiban');
 
   const baseEntry = {
     transaction_id: tx.id,
@@ -309,11 +286,54 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
     created_at: serverTimestamp()
   };
 
-  // 3. Masukkan ke Batch (Atomicity)
-  batch.set(debitDocRef, { ...baseEntry, ...debitEntry });
-  batch.set(creditDocRef, { ...baseEntry, ...creditEntry });
-  
-  // 4. Update status transaksi asli (Consistency)
+  const entries = [];
+
+  if (tx.type === 'Pengeluaran') {
+    // === PENGELUARAN (Compound) ===
+    // Dr. Beban .............. DPP
+    // Dr. PPN Masukan ........ PPN (jika ada)
+    // Cr. Hutang PPh ......... PPh (jika ada)
+    // Cr. Kas/Bank ........... Total Kas Keluar
+
+    entries.push({ ...baseEntry, account_id: tx.account_id, account_code: account?.code, account_name: account?.name || 'Beban', account_type: account?.type || 'Beban', debit: dpp, credit: 0 });
+
+    if (ppnAmount > 0) {
+      entries.push({ ...baseEntry, account_id: ppnMasukanAcc.id, account_code: ppnMasukanAcc.code, account_name: ppnMasukanAcc.name, account_type: ppnMasukanAcc.type, debit: ppnAmount, credit: 0, description: `PPN Masukan - ${tx.description || ''}` });
+    }
+
+    if (pphAmount > 0) {
+      entries.push({ ...baseEntry, account_id: hutangPPhAcc.id, account_code: hutangPPhAcc.code, account_name: hutangPPhAcc.name, account_type: hutangPPhAcc.type, debit: 0, credit: pphAmount, description: `PPh ${tx.pph_type || ''} Dipotong - ${tx.description || ''}` });
+    }
+
+    entries.push({ ...baseEntry, account_id: paymentAccountId, account_code: paymentAccount?.code, account_name: paymentAccount?.name || 'Kas/Bank', account_type: paymentAccount?.type || 'Aset', debit: 0, credit: totalKas });
+
+  } else {
+    // === PEMASUKAN (Compound) ===
+    // Dr. Kas/Bank ........... Total Kas Masuk
+    // Dr. Hutang PPh ......... PPh Dipotong Pihak Lain (jika ada)
+    // Cr. Pendapatan ......... DPP
+    // Cr. PPN Keluaran ....... PPN (jika ada)
+
+    entries.push({ ...baseEntry, account_id: paymentAccountId, account_code: paymentAccount?.code, account_name: paymentAccount?.name || 'Kas/Bank', account_type: paymentAccount?.type || 'Aset', debit: totalKas, credit: 0 });
+
+    if (pphAmount > 0) {
+      entries.push({ ...baseEntry, account_id: hutangPPhAcc.id, account_code: hutangPPhAcc.code, account_name: hutangPPhAcc.name, account_type: hutangPPhAcc.type, debit: pphAmount, credit: 0, description: `PPh ${tx.pph_type || ''} Dipungut - ${tx.description || ''}` });
+    }
+
+    entries.push({ ...baseEntry, account_id: tx.account_id, account_code: account?.code, account_name: account?.name || 'Pendapatan', account_type: account?.type || 'Pendapatan', debit: 0, credit: dpp });
+
+    if (ppnAmount > 0) {
+      entries.push({ ...baseEntry, account_id: ppnKeluaranAcc.id, account_code: ppnKeluaranAcc.code, account_name: ppnKeluaranAcc.name, account_type: ppnKeluaranAcc.type, debit: 0, credit: ppnAmount, description: `PPN Keluaran - ${tx.description || ''}` });
+    }
+  }
+
+  // Masukkan semua entri ke Batch secara ATOMIK
+  entries.forEach(entry => {
+    const entryDocRef = doc(journalRef);
+    batch.set(entryDocRef, entry);
+  });
+
+  // Update status transaksi asli
   batch.update(txRef, {
     status: 'Final',
     journal_id: tx.id,
@@ -321,14 +341,14 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
     account_name: account?.name || ''
   });
 
-  // 5. EKSEKUSI ATOMIK (Commit)
+  // EKSEKUSI ATOMIK
   try {
     await batch.commit();
-    console.log('[JournalEngine] Atomic Transaction Committed Successfully ✅');
+    console.log(`[JournalEngine] Compound Journal Committed: ${entries.length} entries ✅`);
     return true;
   } catch (error) {
     console.error('[JournalEngine] Atomic Transaction Failed ❌:', error);
-    throw new Error(`Data Integrity Error: Gagal mencatat jurnal secara aman. Silakan coba lagi. (${error.message})`);
+    throw new Error(`Data Integrity Error: Gagal mencatat jurnal secara aman. (${error.message})`);
   }
 }
 

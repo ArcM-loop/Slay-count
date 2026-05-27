@@ -116,39 +116,56 @@ export default function Laporan() {
   );
 
   const labaRugi = useMemo(() => {
-    const pendapatan = periodTx.filter(t => t.type === 'Pemasukan');
-    const beban = periodTx.filter(t => t.type === 'Pengeluaran');
+    // FIX #6 & #7: Baca Pendapatan dan Beban dari BUKU BESAR (Journal Entries) bulan ini
+    const periodJournals = journalEntries.filter(j => j.date?.startsWith(periodKey));
     
-    // Professional Logic: Calculate COGS and Depreciation
-    // In a real app, these would come from the inventory and asset sub-systems
-    const estimatedCOGS = periodTx.filter(t => t.tags?.includes('StockSale'))
-      .reduce((s, t) => s + (t.amount * 0.6), 0); // Mocking 60% margin for professional look
-      
+    let totalPendapatan = 0;
+    let totalBeban = 0;
+    let actualCOGS = 0;
+    let nonFiscalBeban = 0;
+    
+    const pendapatanByAcc = {};
+    const bebanByAcc = {};
+
+    periodJournals.forEach(entry => {
+        // Tentukan saldo bersih akun dari jurnal (Kredit - Debit untuk Pendapatan, Debit - Kredit untuk Beban)
+        const netAmount = (parseFloat(entry.debit) || 0) - (parseFloat(entry.credit) || 0);
+        const accName = entry.account_name || 'Unknown';
+        
+        if (entry.account_type === 'Pendapatan') {
+            const revenue = -netAmount; // Pendapatan bertambah di kredit
+            if (revenue !== 0) {
+                pendapatanByAcc[accName] = (pendapatanByAcc[accName] || 0) + revenue;
+                totalPendapatan += revenue;
+            }
+        } else if (entry.account_type === 'Beban' || entry.account_type === 'HPP') {
+            const expense = netAmount; // Beban bertambah di debit
+            if (expense !== 0) {
+                bebanByAcc[accName] = (bebanByAcc[accName] || 0) + expense;
+                totalBeban += expense;
+                
+                // Track COGS separately for display if needed
+                if (accName.toLowerCase().includes('hpp') || accName.toLowerCase().includes('pokok')) {
+                    actualCOGS += expense;
+                }
+            }
+        }
+    });
+
+    // Depreciation remains auto-calculated if asset module is used
     const monthlyDepreciation = activeBusiness?.assets?.reduce((sum, asset) => {
       return sum + calculateMonthlyDepreciation(asset.cost, asset.groupKey);
     }, 0) || 0;
 
-    const totalPendapatan = pendapatan.reduce((s, t) => s + t.amount, 0);
-    const totalBeban = beban.reduce((s, t) => s + t.amount, 0) + estimatedCOGS + monthlyDepreciation;
+    if (monthlyDepreciation > 0) {
+        bebanByAcc['Beban Penyusutan Aset Tetap'] = monthlyDepreciation;
+        totalBeban += monthlyDepreciation;
+    }
 
-    const nonFiscalBeban = beban.filter(t => t.isNonFiscal).reduce((s, t) => s + t.amount, 0);
-
-    // Group by account
-    const pendapatanByAcc = {};
-    pendapatan.forEach(t => {
-      const key = t.account_name || 'Pendapatan Lain-lain';
-      pendapatanByAcc[key] = (pendapatanByAcc[key] || 0) + t.amount;
+    // Fiscal adjustment from period transactions as a fallback for non-fiscal tags
+    periodTx.filter(t => t.type === 'Pengeluaran' && t.isNonFiscal).forEach(t => {
+        nonFiscalBeban += (parseFloat(t.dpp || t.amount) || 0);
     });
-    
-    const bebanByAcc = {};
-    beban.forEach(t => {
-      const key = t.account_name || 'Beban Lain-lain';
-      bebanByAcc[key] = (bebanByAcc[key] || 0) + t.amount;
-    });
-
-    // Add Pro Accounts
-    if (estimatedCOGS > 0) bebanByAcc['Harga Pokok Penjualan (HPP)'] = estimatedCOGS;
-    if (monthlyDepreciation > 0) bebanByAcc['Beban Penyusutan Aset Tetap'] = monthlyDepreciation;
 
     return { 
       pendapatanByAcc, 
@@ -158,10 +175,10 @@ export default function Laporan() {
       labaKomersial: totalPendapatan - totalBeban,
       nonFiscalBeban,
       labaFiskal: (totalPendapatan - totalBeban) + nonFiscalBeban,
-      cogs: estimatedCOGS,
+      cogs: actualCOGS,
       depr: monthlyDepreciation
     };
-  }, [periodTx, activeBusiness]);
+  }, [journalEntries, periodKey, periodTx, activeBusiness]);
 
   const reportData = useMemo(() => {
     // 1. Calculate Real Balances from Ledger

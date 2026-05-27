@@ -11,6 +11,8 @@ import { useQuery } from '@tanstack/react-query';
 import { formatRupiah } from '@/lib/formatters';
 import TaxTypeSelector from '@/components/tax/TaxTypeSelector';
 import { TAX_RULES, calculateTax, detectTaxType } from '@/logic/tax/calculator';
+import { isPeriodLocked, PERIOD_LOCKED_ERROR } from '@/lib/accountingValidation';
+import { toast } from 'sonner';
 
 export default function AddTransactionModal({ open, onClose }) {
   const { activeBusiness } = useBusiness();
@@ -63,6 +65,14 @@ export default function AddTransactionModal({ open, onClose }) {
 
   const handleSave = async () => {
     if (!activeBusiness || !form.amount || !form.date) return;
+
+    // FIX #3: Cek Period Lock sebelum menyimpan
+    const locked = await isPeriodLocked(form.date, activeBusiness.id);
+    if (locked) {
+      toast.error(PERIOD_LOCKED_ERROR);
+      return;
+    }
+
     setSaving(true);
     const account = accounts.find(a => a.id === form.account_id);
     await GoogleGenerativeAI.entities.Transaction.create({
