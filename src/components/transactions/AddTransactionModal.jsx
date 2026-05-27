@@ -70,7 +70,7 @@ export default function AddTransactionModal({ open, onClose }) {
       business_id: activeBusiness.id,
       amount: parseFloat(form.amount),
       account_name: account?.name || '',
-      status: 'Final',
+      status: 'Inbox', // ✅ Elegance Fix: Masuk ke Inbox agar divalidasi Swarm
       source: 'Manual',
     });
     setSaving(false);

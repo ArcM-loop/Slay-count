@@ -16,6 +16,7 @@ const AIAccuracyDashboard = lazy(() => import('./pages/AIAccuracyDashboard'));
 const BankReconciliationPage = lazy(() => import('./pages/BankReconciliation'));
 const SettingsPage = lazy(() => import('./pages/Pengaturan'));
 const ManualJournalPage = lazy(() => import('./pages/ManualJournal'));
+const BukuBesarPage = lazy(() => import('./pages/BukuBesar'));
 const FinancialHealthPage = lazy(() => import('./pages/FinancialHealth'));
 import LoginPage from './pages/Login/LoginPage';
 import { useState, useEffect } from 'react';
@@ -96,6 +97,12 @@ function App() {
         <Route path="validasi" element={
           <Suspense fallback={<PageLoader />}>
             <ValidationPage />
+          </Suspense>
+        } />
+        
+        <Route path="buku-besar" element={
+          <Suspense fallback={<PageLoader />}>
+            <BukuBesarPage />
           </Suspense>
         } />
         

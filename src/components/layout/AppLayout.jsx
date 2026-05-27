@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { path: '/validasi', label: 'Validasi', icon: ShieldCheck, emoji: '✅', image: validationIcon },
   { path: '/siklus', label: 'Siklus', icon: RotateCcw, emoji: '♻️' }, // Siklus tetep pake emote biasa
   { path: '/purchase-order', label: 'Purchase Order', icon: BookOpen, emoji: '📦', image: poIcon },
+  { path: '/buku-besar', label: 'Buku Besar', icon: BookOpen, emoji: '📖' },
   { path: '/manual-journal', label: 'Jurnal Manual', icon: BookOpenCheck, emoji: '✍️' },
   { path: '/bank-reconciliation', label: 'Rekonsiliasi Bank', icon: ArrowLeftRight, emoji: '🔄' },
   { path: '/health', label: 'Financial Health', icon: BrainCircuit, emoji: '🧠' },

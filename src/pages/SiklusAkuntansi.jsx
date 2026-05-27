@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Plus, Trash2, RotateCcw, Lock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Plus, Trash2, RotateCcw, Lock, ChevronDown, ChevronUp, Bot } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import { ClosingAgent } from '@/lib/swarm/agents/ClosingAgent';
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const CURRENT_YEAR = new Date().getFullYear();
@@ -59,76 +60,25 @@ export default function SiklusAkuntansi() {
         enabled: !!activeBusiness,
     });
 
-    // ── Jalankan Penyusutan ──────────────────────────────────────────
+    // ── Jalankan Penyusutan (Didelegasikan ke Swarm AI) ──────────────────────────────────────────
     const handleRunDepreciation = async () => {
         setDepRunning(true);
         setDepResult(null);
         const period = `${depYear}-${depMonth}`;
-        const activeAssets = assets.filter(a => a.is_active);
-        let count = 0;
-        let totalDep = 0;
-
-        // Akun beban penyusutan & akumulasi penyusutan
-        const bebanDepAcc = accounts.find(a => a.name?.toLowerCase().includes('penyusutan') && a.type === 'Beban');
-        const akumDepAcc = accounts.find(a => a.name?.toLowerCase().includes('akumulasi') && a.type === 'Aset');
-
-        for (const asset of activeAssets) {
-            // Skip jika sudah diproses bulan ini
-            if (asset.last_depreciation_date?.startsWith(period)) continue;
-            // Skip jika sudah habis umurnya
-            if ((asset.accumulated_depreciation || 0) >= (asset.acquisition_cost - (asset.salvage_value || 0))) continue;
-
-            const monthlyDep = calcMonthlyDepreciation(asset);
-            if (monthlyDep <= 0) continue;
-
-            const groupId = uuidv4();
-            const entries = [];
-
-            // Debit: Beban Penyusutan
-            entries.push({
-                business_id: activeBusiness.id,
-                transaction_group_id: groupId,
-                account_id: bebanDepAcc?.id || 'depreciation_expense',
-                account_code: bebanDepAcc?.code || '6-9001',
-                account_name: bebanDepAcc?.name || 'Beban Penyusutan',
-                account_type: 'Beban',
-                debit: monthlyDep,
-                credit: 0,
-                description: `Penyusutan ${asset.name} - ${period}`,
-                date: `${period}-01`,
-                entry_type: 'auto_depreciation',
-            });
-
-            // Kredit: Akumulasi Penyusutan
-            entries.push({
-                business_id: activeBusiness.id,
-                transaction_group_id: groupId,
-                account_id: akumDepAcc?.id || 'accum_depreciation',
-                account_code: akumDepAcc?.code || '1-9001',
-                account_name: akumDepAcc?.name || 'Akumulasi Penyusutan',
-                account_type: 'Aset',
-                debit: 0,
-                credit: monthlyDep,
-                description: `Akumulasi penyusutan ${asset.name} - ${period}`,
-                date: `${period}-01`,
-                entry_type: 'auto_depreciation',
-            });
-
-            await GoogleGenerativeAI.entities.JournalEntry.bulkCreate(entries);
-
-            // Update accumulated_depreciation & last_depreciation_date
-            await GoogleGenerativeAI.entities.FixedAsset.update(asset.id, {
-                accumulated_depreciation: (asset.accumulated_depreciation || 0) + monthlyDep,
-                last_depreciation_date: `${period}-01`,
-            });
-
-            count++;
-            totalDep += monthlyDep;
-        }
+        
+        // AI Closing Agent bertugas mencetak penyesuaian akhir bulan
+        await ClosingAgent.runMonthEndAdjustments(activeBusiness.id, `${period}-28`);
+        
+        // AI Closing Agent bertugas mencetak pembalik di tanggal 1 bulan depannya
+        let nextM = parseInt(depMonth) + 1;
+        let nextY = parseInt(depYear);
+        if (nextM > 12) { nextM = 1; nextY++; }
+        const nextPeriod = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+        await ClosingAgent.runMonthStartReversals(activeBusiness.id, nextPeriod);
 
         queryClient.invalidateQueries({ queryKey: ['fixed-assets', activeBusiness.id] });
         queryClient.invalidateQueries({ queryKey: ['journal-entries', activeBusiness.id] });
-        setDepResult({ count, totalDep, period });
+        setDepResult({ count: 'All', totalDep: 'By AI', period });
         setDepRunning(false);
     };
 
