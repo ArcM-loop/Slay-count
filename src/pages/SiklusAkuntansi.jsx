@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Loader2, Plus, Trash2, RotateCcw, Lock, ChevronDown, ChevronUp, Bot } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { ClosingAgent } from '@/lib/swarm/agents/ClosingAgent';
+import { visualizerStore } from '@/lib/swarm/visualizerStore';
 
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const CURRENT_YEAR = new Date().getFullYear();
@@ -64,6 +65,7 @@ export default function SiklusAkuntansi() {
     const handleRunDepreciation = async () => {
         setDepRunning(true);
         setDepResult(null);
+        visualizerStore.startAction('ClosingAgent', 'Sedang menghitung beban penyusutan akhir bulan...');
         const period = `${depYear}-${depMonth}`;
         
         // AI Closing Agent bertugas mencetak penyesuaian akhir bulan
@@ -74,28 +76,35 @@ export default function SiklusAkuntansi() {
         let nextY = parseInt(depYear);
         if (nextM > 12) { nextM = 1; nextY++; }
         const nextPeriod = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+        
+        visualizerStore.updateAction('thinking', 'Membuat jurnal pembalik awal bulan...');
         await ClosingAgent.runMonthStartReversals(activeBusiness.id, nextPeriod);
 
         queryClient.invalidateQueries({ queryKey: ['fixed-assets', activeBusiness.id] });
         queryClient.invalidateQueries({ queryKey: ['journal-entries', activeBusiness.id] });
         setDepResult({ count: 'All', totalDep: 'By AI', period });
         setDepRunning(false);
+        visualizerStore.endAction('Penyesuaian aset dan pembalik selesai dicatat.');
     };
 
     // ── Tutup Periode ────────────────────────────────────────────────
     const handleClosePeriod = async () => {
         setClosingRunning(true);
         setClosingResult(null);
+        visualizerStore.startAction('ClosingAgent', 'Memeriksa jurnal untuk proses tutup buku...');
         const period = `${closingYear}-${closingMonth}`;
 
         // Cek sudah pernah ditutup?
         const alreadyClosed = closingHistory.find(c => c.period === period);
         if (alreadyClosed) {
+            visualizerStore.updateAction('error', 'Periode ini sudah pernah ditutup!');
+            setTimeout(() => visualizerStore.endAction(''), 3000);
             setClosingResult({ error: `Periode ${period} sudah pernah ditutup!` });
             setClosingRunning(false);
             return;
         }
 
+        visualizerStore.updateAction('validating', 'Menghitung Ikhtisar Laba Rugi dan memindahkan saldo beban & pendapatan...');
         // Ambil semua entri jurnal periode ini
         const allEntries = await GoogleGenerativeAI.entities.JournalEntry.filter({
             business_id: activeBusiness.id,
@@ -247,6 +256,7 @@ export default function SiklusAkuntansi() {
         queryClient.invalidateQueries({ queryKey: ['journal-entries', activeBusiness.id] });
         setClosingResult({ period, labaBersih, totalPendapatan, totalBeban, txCount: inPeriodEntries.length });
         setClosingRunning(false);
+        visualizerStore.endAction('Tutup buku berhasil! Saldo telah dipindahkan ke Laba Ditahan.');
     };
 
     if (!activeBusiness) return (

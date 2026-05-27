@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AddTransactionModal from '@/components/transactions/AddTransactionModal';
+import PixelVisualizer from '@/components/swarm/PixelVisualizer';
 
 // 3D Assets
 import dashboardIcon from '@/assets/3d/dashboard.png';
@@ -235,6 +236,7 @@ export default function AppLayout() {
       </div>
 
       <AddTransactionModal open={showAddTx} onClose={() => setShowAddTx(false)} />
+      <PixelVisualizer />
 
     </div>
   );

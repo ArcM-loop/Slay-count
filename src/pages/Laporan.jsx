@@ -12,6 +12,7 @@ import { ExportSwarm } from '@/lib/swarm/exportOrchestrator';
 import { useQueryClient } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { visualizerStore } from '@/lib/swarm/visualizerStore';
 import { calculateMonthlyDepreciation } from '@/logic/accounting/assetEngine';
 import { calculateCOGS } from '@/logic/accounting/inventoryEngine';
 import { computeAccountBalances, checkTrialBalanceIntegrity } from '@/lib/ledgerEngine';
@@ -68,21 +69,28 @@ export default function Laporan() {
     };
 
     try {
+      visualizerStore.startAction('AuditAgent', 'Memeriksa kelayakan data keuangan...');
       toast.loading("Swarm Agent sedang memeriksa kelayakan data laporan keuangan...", { id: 'swarm-audit' });
       const audit = await ExportSwarm.execute(swarmPayload);
       
       if (!audit.isFinal) {
+        visualizerStore.updateAction('error', 'Audit gagal. Ditemukan anomali fatal.');
         toast.error(`Audit Swarm Menolak Ekspor: ${audit.objections.join(', ')}`, { id: 'swarm-audit', duration: 5000 });
+        setTimeout(() => visualizerStore.endAction(''), 3000);
         setExporting(false);
         return;
       }
 
       if (audit.objections.length > 0) {
         // Terdapat warning/advis butuh persetujuan/perhatian
+        visualizerStore.updateAction('validating', 'Peringatan: Ada data kurang wajar.');
         toast.warning(`Audit Lolos dengan Peringatan: ${audit.objections.join(', ')}`, { id: 'swarm-audit', duration: 6000 });
       } else {
+        visualizerStore.updateAction('validating', 'Data akuntansi 100% valid dan balance.');
         toast.success("Swarm Audit Lolos! Semua data visual, matematika, dan pajak 100% aman.", { id: 'swarm-audit' });
       }
+
+      visualizerStore.endAction('Laporan diekspor dengan sukses.', 4000);
 
       await exportFullAccountingExcel({
         businessName: activeBusiness.name,
@@ -92,6 +100,8 @@ export default function Laporan() {
         accounts,
       });
     } catch (err) {
+      visualizerStore.updateAction('error', 'Terjadi kesalahan sistem.');
+      setTimeout(() => visualizerStore.endAction(''), 3000);
       toast.error(`Terjadi kesalahan sistem saat audit swarm: ${err.message}`, { id: 'swarm-audit' });
     } finally {
       setExporting(false);
@@ -223,7 +233,7 @@ export default function Laporan() {
         </div>
 
         <div className="flex gap-2 ml-auto items-center">
-          {['neraca-saldo', 'laba-rugi', 'neraca'].map(tab => (
+          {['neraca-saldo', 'laba-rugi', 'neraca', 'arus-kas', 'perubahan-modal'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize
                 ${activeTab === tab ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-secondary text-muted-foreground'}`}>
@@ -253,11 +263,27 @@ export default function Laporan() {
           businessName={activeBusiness.name} 
           isPro={isProfessional}
         />
-      ) : (
+      ) : activeTab === 'neraca' ? (
         <NeracaReport 
           data={reportData} 
           period={`Per ${MONTHS[parseInt(month) - 1]} ${year}`} 
           businessName={activeBusiness.name} 
+          isPro={isProfessional}
+        />
+      ) : activeTab === 'arus-kas' ? (
+        <ArusKasReport 
+          journalEntries={journalEntries}
+          period={`${year}-${month}`}
+          periodName={`${MONTHS[parseInt(month) - 1]} ${year}`}
+          businessName={activeBusiness.name}
+          isPro={isProfessional}
+        />
+      ) : (
+        <PerubahanModalReport
+          data={reportData}
+          labaBersih={labaRugi.labaKomersial}
+          period={`${MONTHS[parseInt(month) - 1]} ${year}`}
+          businessName={activeBusiness.name}
           isPro={isProfessional}
         />
       )}
@@ -619,6 +645,205 @@ function NeracaReport({ data, period, businessName, isPro }) {
         <p className="text-[10px] text-muted-foreground leading-relaxed italic">
           Data ini diverifikasi melalui integrasi Buku Besar (General Ledger). Seluruh mutasi telah divalidasi menggunakan sistem double-entry accounting sesuai standar SAK EMKM.
         </p>
+      </div>
+    </motion.div>
+  );
+}
+
+function ArusKasReport({ journalEntries, period, periodName, businessName, isPro }) {
+  const cashFlows = useMemo(() => {
+    // Basic direct method simulation
+    let operatingIn = 0;
+    let operatingOut = 0;
+    let investingIn = 0;
+    let investingOut = 0;
+    let financingIn = 0;
+    let financingOut = 0;
+
+    journalEntries.forEach(j => {
+      if (!j.date?.startsWith(period)) return;
+      const isCash = j.account_name?.toLowerCase().includes('kas') || j.account_name?.toLowerCase().includes('bank');
+      if (!isCash) return;
+
+      const amount = j.debit - j.credit; // Positive = Kas Masuk, Negative = Kas Keluar
+      if (amount === 0) return;
+
+      const desc = j.description?.toLowerCase() || '';
+
+      // Tentukan Kategori Arus Kas secara heuristik kasar
+      if (desc.includes('investasi') || desc.includes('aset tetap') || desc.includes('peralatan') || desc.includes('kendaraan') || desc.includes('bangunan')) {
+        if (amount > 0) investingIn += amount;
+        else investingOut += Math.abs(amount);
+      } else if (desc.includes('modal') || desc.includes('prive') || desc.includes('dividen') || desc.includes('pinjaman bank') || desc.includes('hutang bank')) {
+        if (amount > 0) financingIn += amount;
+        else financingOut += Math.abs(amount);
+      } else {
+        // Sisanya masuk ke Operasi (Penjualan, Pembayaran Beban, dll)
+        if (amount > 0) operatingIn += amount;
+        else operatingOut += Math.abs(amount);
+      }
+    });
+
+    const netOperating = operatingIn - operatingOut;
+    const netInvesting = investingIn - investingOut;
+    const netFinancing = financingIn - financingOut;
+
+    return {
+      operatingIn, operatingOut, netOperating,
+      investingIn, investingOut, netInvesting,
+      financingIn, financingOut, netFinancing,
+      netIncrease: netOperating + netInvesting + netFinancing
+    };
+  }, [journalEntries, period]);
+
+  if (isPro) {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white text-slate-900 p-8 md:p-12 shadow-2xl rounded-sm border-t-8 border-slate-900 font-serif">
+        <div className="text-center border-b-2 border-slate-900 pb-6 mb-8">
+          <h2 className="text-2xl font-bold uppercase tracking-widest">{businessName}</h2>
+          <h3 className="text-xl font-medium mt-1">LAPORAN ARUS KAS</h3>
+          <p className="text-sm mt-1 italic">Untuk Periode yang Berakhir pada {periodName}</p>
+        </div>
+
+        <table className="w-full border-collapse text-sm">
+          <tbody>
+            <tr><td className="py-2 font-bold" colSpan="2">ARUS KAS DARI AKTIVITAS OPERASI</td></tr>
+            <tr><td className="py-1 pl-6">Penerimaan Kas dari Pelanggan</td><td className="py-1 text-right">{formatRupiah(cashFlows.operatingIn).replace('Rp', '')}</td></tr>
+            <tr><td className="py-1 pl-6">Pembayaran Kas untuk Beban</td><td className="py-1 text-right">({formatRupiah(cashFlows.operatingOut).replace('Rp', '')})</td></tr>
+            <tr className="font-bold border-t border-slate-300">
+              <td className="py-2 pl-6">Kas Bersih dari Aktivitas Operasi</td>
+              <td className="py-2 text-right">{formatRupiah(cashFlows.netOperating).replace('Rp', '')}</td>
+            </tr>
+
+            <tr><td className="py-4 font-bold" colSpan="2">ARUS KAS DARI AKTIVITAS INVESTASI</td></tr>
+            <tr><td className="py-1 pl-6">Penerimaan dari Penjualan Aset</td><td className="py-1 text-right">{formatRupiah(cashFlows.investingIn).replace('Rp', '')}</td></tr>
+            <tr><td className="py-1 pl-6">Pengeluaran untuk Pembelian Aset</td><td className="py-1 text-right">({formatRupiah(cashFlows.investingOut).replace('Rp', '')})</td></tr>
+            <tr className="font-bold border-t border-slate-300">
+              <td className="py-2 pl-6">Kas Bersih dari Aktivitas Investasi</td>
+              <td className="py-2 text-right">{formatRupiah(cashFlows.netInvesting).replace('Rp', '')}</td>
+            </tr>
+
+            <tr><td className="py-4 font-bold" colSpan="2">ARUS KAS DARI AKTIVITAS PENDANAAN</td></tr>
+            <tr><td className="py-1 pl-6">Penerimaan dari Setoran Modal/Pinjaman</td><td className="py-1 text-right">{formatRupiah(cashFlows.financingIn).replace('Rp', '')}</td></tr>
+            <tr><td className="py-1 pl-6">Pengeluaran untuk Prive/Dividen/Cicilan</td><td className="py-1 text-right">({formatRupiah(cashFlows.financingOut).replace('Rp', '')})</td></tr>
+            <tr className="font-bold border-t border-slate-300">
+              <td className="py-2 pl-6">Kas Bersih dari Aktivitas Pendanaan</td>
+              <td className="py-2 text-right">{formatRupiah(cashFlows.netFinancing).replace('Rp', '')}</td>
+            </tr>
+
+            <tr className="font-bold border-t-2 border-slate-900">
+              <td className="py-3 uppercase">KENAIKAN (PENURUNAN) KAS BERSIH</td>
+              <td className="py-3 text-right border-b-4 border-double border-slate-900">{formatRupiah(cashFlows.netIncrease).replace('Rp', '')}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="mt-12 text-[10px] text-slate-400 italic">Disusun secara otomatis oleh SlayCount AI sesuai standar SAK EMKM (Metode Langsung).</p>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="bento-card">
+      <div className="text-center mb-6">
+        <h2 className="font-bold text-lg">{businessName}</h2>
+        <p className="text-muted-foreground text-sm">Arus Kas (Simplified)</p>
+      </div>
+      <div className="space-y-4">
+        <div className="flex justify-between border-b border-border/30 pb-2">
+          <span className="text-muted-foreground">Arus Kas Operasi</span>
+          <span className="font-mono text-cyan-400">{formatRupiah(cashFlows.netOperating)}</span>
+        </div>
+        <div className="flex justify-between border-b border-border/30 pb-2">
+          <span className="text-muted-foreground">Arus Kas Investasi</span>
+          <span className="font-mono text-orange-400">{formatRupiah(cashFlows.netInvesting)}</span>
+        </div>
+        <div className="flex justify-between border-b border-border/30 pb-2">
+          <span className="text-muted-foreground">Arus Kas Pendanaan</span>
+          <span className="font-mono text-neon-purple">{formatRupiah(cashFlows.netFinancing)}</span>
+        </div>
+        <div className="flex justify-between pt-2 font-bold text-primary text-lg">
+          <span>Net Cash Flow</span>
+          <span>{formatRupiah(cashFlows.netIncrease)}</span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function PerubahanModalReport({ data, labaBersih, period, businessName, isPro }) {
+  const modalAwal = useMemo(() => {
+    // Estimasi Modal Awal: Total Modal di neraca saldo dikurangi pergerakan modal masuk/keluar bulan ini.
+    // Untuk blueprint, kita ambil saldo Modal dari Neraca.
+    const modalAccount = data.ekuitas.find(a => a.name.toLowerCase().includes('modal') && !a.name.toLowerCase().includes('ditahan'));
+    return modalAccount ? (modalAccount.endingBalance || 0) : 0;
+  }, [data]);
+
+  const prive = useMemo(() => {
+    const priveAccount = data.ekuitas.find(a => a.name.toLowerCase().includes('prive'));
+    return priveAccount ? Math.abs(priveAccount.endingBalance || 0) : 0;
+  }, [data]);
+
+  const modalAkhir = modalAwal + labaBersih - prive;
+
+  if (isPro) {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white text-slate-900 p-8 md:p-12 shadow-2xl rounded-sm border-t-8 border-slate-900 font-serif">
+        <div className="text-center border-b-2 border-slate-900 pb-6 mb-8">
+          <h2 className="text-2xl font-bold uppercase tracking-widest">{businessName}</h2>
+          <h3 className="text-xl font-medium mt-1">LAPORAN PERUBAHAN EKUITAS</h3>
+          <p className="text-sm mt-1 italic">Untuk Periode yang Berakhir pada {period}</p>
+        </div>
+
+        <table className="w-full border-collapse text-sm">
+          <tbody>
+            <tr>
+              <td className="py-2 pl-6">Modal Awal</td>
+              <td className="py-2 text-right">{formatRupiah(modalAwal).replace('Rp', '')}</td>
+            </tr>
+            <tr>
+              <td className="py-2 pl-6">Laba (Rugi) Bersih</td>
+              <td className="py-2 text-right">{formatRupiah(labaBersih).replace('Rp', '')}</td>
+            </tr>
+            <tr>
+              <td className="py-2 pl-6">Prive (Penarikan Pribadi)</td>
+              <td className="py-2 text-right">({formatRupiah(prive).replace('Rp', '')})</td>
+            </tr>
+            <tr className="font-bold border-t-2 border-slate-900">
+              <td className="py-3 uppercase">MODAL AKHIR</td>
+              <td className="py-3 text-right border-b-4 border-double border-slate-900">{formatRupiah(modalAkhir).replace('Rp', '')}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="mt-12 text-[10px] text-slate-400 italic">Disusun secara otomatis oleh SlayCount AI sesuai standar SAK EMKM.</p>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="bento-card">
+      <div className="text-center mb-6">
+        <h2 className="font-bold text-lg">{businessName}</h2>
+        <p className="text-muted-foreground text-sm">Perubahan Modal (Simplified)</p>
+      </div>
+      <div className="space-y-4">
+        <div className="flex justify-between border-b border-border/30 pb-2">
+          <span className="text-muted-foreground">Modal Awal</span>
+          <span className="font-mono text-cyan-400">{formatRupiah(modalAwal)}</span>
+        </div>
+        <div className="flex justify-between border-b border-border/30 pb-2">
+          <span className="text-muted-foreground">Laba Bersih</span>
+          <span className={`font-mono ${labaBersih >= 0 ? 'text-cyber-lime' : 'text-destructive'}`}>
+            {formatRupiah(labaBersih)}
+          </span>
+        </div>
+        <div className="flex justify-between border-b border-border/30 pb-2">
+          <span className="text-muted-foreground">Prive</span>
+          <span className="font-mono text-destructive">({formatRupiah(prive)})</span>
+        </div>
+        <div className="flex justify-between pt-2 font-bold text-neon-purple text-lg">
+          <span>Modal Akhir</span>
+          <span>{formatRupiah(modalAkhir)}</span>
+        </div>
       </div>
     </motion.div>
   );

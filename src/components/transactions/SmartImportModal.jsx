@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/tooltip";
 import { analyzeColumns, cleanData } from '@/lib/smartImportEngine';
 import { motion, AnimatePresence } from 'framer-motion';
+import { visualizerStore } from '@/lib/swarm/visualizerStore';
 
 const SmartImportModal = ({ isOpen, onClose, onComplete }) => {
     const [step, setStep] = useState(1); // 1: Upload, 2: Mapping, 3: Review
@@ -54,27 +55,37 @@ const SmartImportModal = ({ isOpen, onClose, onComplete }) => {
             setFileData({ headers, rows, fileName: file.name });
             
             // AI Analyze Columns
-            const initialMapping = analyzeColumns(headers);
-            setMapping(initialMapping);
-            setStep(2);
+            visualizerStore.startAction('DataAgent', 'Membaca struktur file Excel...');
+            setTimeout(() => {
+                const initialMapping = analyzeColumns(headers);
+                setMapping(initialMapping);
+                setStep(2);
+                visualizerStore.endAction('Struktur file berhasil dipetakan.', 2000);
+            }, 500); // Simulate slight delay for effect
         };
         reader.readAsText(file);
     };
 
     const handleStartReview = () => {
+        visualizerStore.startAction('AuditAgent', 'Membersihkan dan menstandarisasi format data...');
         // Gunakan Engine untuk bersihkan data berdasarkan mapping user
-        const result = cleanData(fileData.rows, mapping, [
-            { name: 'Beban Operasional', keywords: ['listrik', 'air', 'internet', 'telkom'] },
-            { name: 'Beban Kendaraan', keywords: ['bensin', 'parkir', 'service', 'pertamina'] },
-            { name: 'Beban Gaji', keywords: ['gaji', 'bonus', 'thr'] },
-            { name: 'Pendapatan Usaha', keywords: ['penjualan', 'invoice', 'lunas'] },
-        ]);
-        setCleanedData(result);
-        setStep(3);
+        setTimeout(() => {
+            const result = cleanData(fileData.rows, mapping, [
+                { name: 'Beban Operasional', keywords: ['listrik', 'air', 'internet', 'telkom'] },
+                { name: 'Beban Kendaraan', keywords: ['bensin', 'parkir', 'service', 'pertamina'] },
+                { name: 'Beban Gaji', keywords: ['gaji', 'bonus', 'thr'] },
+                { name: 'Pendapatan Usaha', keywords: ['penjualan', 'invoice', 'lunas'] },
+            ]);
+            setCleanedData(result);
+            setStep(3);
+            visualizerStore.endAction('Data berhasil dibersihkan.', 2000);
+        }, 500);
     };
 
     const handleFinalImport = () => {
+        visualizerStore.startAction('AuditAgent', 'Menyimpan data impor ke Buku Besar...');
         onComplete(cleanedData);
+        setTimeout(() => visualizerStore.endAction('Impor berhasil diselesaikan.', 3000), 1000);
         onClose();
     };
 
