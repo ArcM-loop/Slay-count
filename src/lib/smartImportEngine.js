@@ -86,17 +86,25 @@ export const cleanData = (rows, mapping, coaSuggestions = []) => {
             suggestions: []
         };
 
-        // Jika kategori kosong, coba tebak dari deskripsi
+        // Jika kategori kosong, coba tebak dari deskripsi lewat LLM
         if (!cleanedRow.category) {
-            const desc = cleanedRow.description.toLowerCase();
-            const suggestion = coaSuggestions.find(s => 
-                s.keywords.some(k => desc.includes(k.toLowerCase()))
-            );
-            
-            if (suggestion) {
-                cleanedRow.category = suggestion.name;
-                cleanedRow.confidence = 0.85; // Biyo is fairly confident
+            // Siapkan prompt untuk menebak kategori COA berdasarkan deskripsi
+            const prompt = `Berikan satu nama kategori akun (COA) yang paling tepat untuk deskripsi transaksi berikut dalam bahasa Indonesia. Hanya beri nama kategori tanpa penjelasan tambahan.\nDeskripsi: "${cleanedRow.description}"`;
+            try {
+              const llmRes = await GoogleGenerativeAI.generate({
+                prompt,
+                temperature: 0.2,
+                maxTokens: 64,
+                stopSequences: ['\n']
+              });
+              const category = llmRes?.choices?.[0]?.message?.content?.trim();
+              if (category) {
+                cleanedRow.category = category;
+                cleanedRow.confidence = 0.8;
                 cleanedRow.isSuggested = true;
+              }
+            } catch (e) {
+              console.warn('AI category suggestion failed', e);
             }
         } else {
             cleanedRow.confidence = 1.0;

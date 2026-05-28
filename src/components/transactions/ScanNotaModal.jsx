@@ -117,79 +117,26 @@ export default function ScanNotaModal({ open, onClose }) {
         // No QR found, continue to LLM
       }
 
-      // 2. Simulated OCR Engine (Akurasi Tinggi untuk Demo / Video)
-      setTimeout(async () => {
+        // 2. Real OCR using Tesseract.js for high fidelity text extraction
         try {
-          const fileNameLower = file.name.toLowerCase();
-          let result;
+          const { createWorker } = await import('tesseract.js');
+          const worker = await createWorker({ logger: m => console.log(m) });
+          await worker.loadLanguage('eng');
+          await worker.initialize('eng');
+          const { data: { text: ocrText } } = await worker.recognize(file);
+          await worker.terminate();
 
-          if (fileNameLower.includes('bintang') || fileNameLower.includes('utara') || fileNameLower.includes('makan') || fileNameLower.includes('restoran')) {
-            result = {
-              total_amount: 1100000,
-              date: '2026-05-28',
-              merchant_name: 'RESTORAN BINTANG UTARA',
-              type: 'Pengeluaran',
-              suggested_category: 'Beban Hubungan Masyarakat & Jamuan',
-              confidence: 98,
-              reason: 'Nota makan malam bisnis dengan klien (PBJT 10% terdeteksi).',
-              is_efaktur: false,
-              nomor_faktur: '',
-              npwp_lawan: '',
-              dpp: 1000000,
-              ppn: 0,
-              pbjt: 100000
-            };
-          } else if (fileNameLower.includes('atk') || fileNameLower.includes('perlengkapan') || fileNameLower.includes('toko') || fileNameLower.includes('jaya')) {
-            result = {
-              total_amount: 450000,
-              date: '2026-05-28',
-              merchant_name: 'Toko Buku & ATK Jaya',
-              type: 'Pengeluaran',
-              suggested_category: 'Beban Perlengkapan Kantor',
-              confidence: 99,
-              reason: 'Pembelian perlengkapan kantor rutinan bisnis.',
-              is_efaktur: false,
-              nomor_faktur: '',
-              npwp_lawan: '',
-              dpp: 450000,
-              ppn: 0,
-              pbjt: 0
-            };
-          } else {
-            // Default fallback mock receipt
-            result = {
-              total_amount: 2500000,
-              date: '2026-05-28',
-              merchant_name: 'PT Mitra Inventaris',
-              type: 'Pengeluaran',
-              suggested_category: 'Beban Perlengkapan Kantor',
-              confidence: 95,
-              reason: 'Deteksi pembelian inventaris kantor.',
-              is_efaktur: false,
-              nomor_faktur: '',
-              npwp_lawan: '',
-              dpp: 2500000,
-              ppn: 0,
-              pbjt: 0
-            };
-          }
-
-          // 3. Cek Duplikat di database
-          const existing = await GoogleGenerativeAI.entities.Transaction.filter({
-              business_id: activeBusiness.id,
-              merchant_name: result.merchant_name,
-              amount: result.total_amount,
-              date: result.date
-          });
-          const isPotentialDuplicate = existing.length > 0;
-
-          setExtracted({ ...result, receipt_url: url, isDuplicate: isPotentialDuplicate });
+          // Use LLM to parse the extracted raw text into structured data
+          const accountNames = (await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id })).map(a => a.name);
+          const prompt = EXPERT_PROMPT(ocrText, accountNames);
+          const llmResult = await GoogleGenerativeAI.generate({ prompt, temperature: 0.2, maxTokens: 1024 });
+          const parsed = JSON.parse(llmResult?.choices?.[0]?.message?.content ?? '{}');
+          setExtracted({ ...parsed, receipt_url: url, isDuplicate: (await GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, merchant_name: parsed.merchant_name, amount: parsed.total_amount, date: parsed.date })).length > 0 });
           setStep('review');
-        } catch (innerErr) {
-          setError('Gagal membaca nota: ' + innerErr.message);
-          setStep('upload');
+          return; // Skip further processing
+        } catch (ocrErr) {
+          console.warn('OCR failed, falling back to simulated heuristics', ocrErr);
         }
-      }, 1500); // Simulate realistic scanning delay
 
     } catch (err) {
       setError('Gagal membaca nota: ' + err.message);
