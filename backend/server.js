@@ -30,9 +30,33 @@ app.use(helmet({
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" } // ✅ INI KUNCI RAHASIANYA! Buka blokir komunikasi popup Google Login di Cloud Run
 }));
 
-// [CVE-2 Fixed] Restricted CORS — hanya izinkan frontend SlayCount
+// [CVE-2 Fixed] Restricted CORS — hanya izinkan frontend SlayCount (Localhost & Cloud Run)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://slaycount-825422475013.asia-southeast2.run.app',
+  'https://slaycount-825422475013.firebaseapp.com',
+  'https://accountomation.web.app',
+  'https://accountomation.firebaseapp.com'
+];
+
+if (process.env.ALLOWED_ORIGIN) {
+  process.env.ALLOWED_ORIGIN.split(/[,;]/).forEach(o => allowedOrigins.push(o.trim()));
+}
+
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const isAllowed = allowedOrigins.includes(origin) || 
+                      origin.startsWith('http://localhost:') || 
+                      origin.startsWith('http://127.0.0.1:') ||
+                      origin.includes('slaycount-825422475013') || 
+                      origin.includes('accountomation');
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Blocked by CORS policy'));
+    }
+  },
   credentials: true
 }));
 

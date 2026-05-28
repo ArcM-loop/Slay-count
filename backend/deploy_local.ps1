@@ -5,6 +5,16 @@
 # Relative path to portable gcloud executable (installed by install_gcloud.ps1)
 $gcloud = Join-Path $PSScriptRoot ".gcloud-sdk\google-cloud-sdk\bin\gcloud.cmd"
 
+# Ensure CLOUDSDK_PYTHON is set correctly for portable execution
+$ExtractPath = Join-Path $PSScriptRoot ".gcloud-sdk"
+$BundledPython = Join-Path $ExtractPath "google-cloud-sdk\platform\bundledpython\python.exe"
+$SystemPython = "C:\Users\march\AppData\Local\Programs\Python\Python314\python.exe"
+if (Test-Path $BundledPython) {
+    $Env:CLOUDSDK_PYTHON = $BundledPython
+} elseif (Test-Path $SystemPython) {
+    $Env:CLOUDSDK_PYTHON = $SystemPython
+}
+
 # Load environment variables from the .env file (backend/.env)
 $envFile = Join-Path $PSScriptRoot ".env"
 if (-not (Test-Path $envFile)) {
