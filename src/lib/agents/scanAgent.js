@@ -6,7 +6,8 @@
  * 3. Call Gemini (GoogleGenerativeAI.generate) to obtain structured JSON.
  * 4. Return the parsed result together with duplicate‑check flag.
  */
-import { createWorker } from 'tesseract.js';
+// Removed Tesseract import – Gemini Vision is used directly in the processing function.
+
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { EXPERT_PROMPT } from '@/components/transactions/ScanNotaModal.jsx'; // reuse existing prompt helper
 
@@ -19,43 +20,71 @@ export const scanAgent = {
    * @returns {Promise<Object>} parsed transaction data + receipt_url + isDuplicate
    */
   async process(file, businessId) {
-    // 1️⃣ OCR with safety timeout
-    const ocrPromise = (async () => {
-      const worker = await createWorker();
-      const { data: { text } } = await worker.recognize(file);
-      await worker.terminate();
-      return text;
-    })();
+      // Gemini Vision – read image directly without OCR
+      const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+      const GEMINI_MODEL = 'gemini-2.0-flash';
+      const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Batas waktu (timeout) pembacaan nota terlampaui.')), 15000)
-    );
+      // Convert file to base64
+      const toBase64 = (f) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(f);
+      });
+      const base64Image = await toBase64(file);
 
-    const rawText = await Promise.race([ocrPromise, timeoutPromise]);
+      const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: businessId });
+      const accountNames = accounts.map(a => a.name);
+      const visionPrompt = `Kamu adalah Biyo, akuntan senior ahli akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP.
+Daftar Akun Tersedia: ${accountNames.join(', ')}
+Ekstrak informasi dari gambar nota dalam format JSON:
+{
+  "total_amount": number,
+  "date": "YYYY-MM-DD",
+  "merchant_name": "string",
+  "type": "Pemasukan" atau "Pengeluaran",
+  "suggested_category": "nama akun dari daftar tersedia",
+  "confidence": number (0-100),
+  "reason": "alasan singkat santai",
+  "is_efaktur": boolean,
+  "nomor_faktur": "string atau null",
+  "npwp_lawan": "string atau null",
+  "dpp": number atau null,
+  "ppn": number atau null
+}`;
 
-    // 2️⃣ Build LLM prompt (reuse same prompt as UI)
-    const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: businessId });
-    const accountNames = accounts.map(a => a.name);
-    const prompt = EXPERT_PROMPT(rawText, accountNames);
+      const visionResponse = await fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: visionPrompt },
+              { inline_data: { mime_type: file.type || 'image/jpeg', data: base64Image } }
+            ]
+          }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 1024, responseMimeType: 'application/json' }
+        })
+      });
+      if (!visionResponse.ok) {
+        const errText = await visionResponse.text();
+        throw new Error(`Gemini Vision gagal: ${visionResponse.status} — ${errText}`);
+      }
+      const visionData = await visionResponse.json();
+      const rawText = visionData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      const parsed = JSON.parse(rawText);
 
-    // 3️⃣ Call Gemini (temperature low for deterministic output)
-    const llmRes = await GoogleGenerativeAI.generate({
-      prompt,
-      temperature: 0.2,
-      maxTokens: 1024,
-      jsonMode: true,
-    });
-    const parsed = JSON.parse(llmRes?.choices?.[0]?.message?.content || '{}');
+      // Duplicate detection
+      const duplicates = await GoogleGenerativeAI.entities.Transaction.filter({
+        business_id: businessId,
+        merchant_name: parsed.merchant_name,
+        amount: parsed.total_amount,
+        date: parsed.date,
+      });
+      const isDuplicate = duplicates.length > 0;
 
-    // 4️⃣ Duplicate detection (same logic as UI)
-    const duplicates = await GoogleGenerativeAI.entities.Transaction.filter({
-      business_id: businessId,
-      merchant_name: parsed.merchant_name,
-      amount: parsed.total_amount,
-      date: parsed.date,
-    });
-    const isDuplicate = duplicates.length > 0;
+      return { ...parsed, receipt_url: URL.createObjectURL(file), isDuplicate };
 
-    return { ...parsed, receipt_url: URL.createObjectURL(file), isDuplicate };
   },
 };

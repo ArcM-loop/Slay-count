@@ -9,7 +9,7 @@ import { Loader2, Upload, Camera, Sparkles, CheckCircle, QrCode, ShieldAlert } f
 import { formatRupiah } from '@/lib/formatters';
 import { Html5Qrcode } from 'html5-qrcode';
 import { validateJournalWithSwarm } from '@/lib/journalEngine';
-import { createWorker } from 'tesseract.js';
+// Tesseract removed — Gemini Vision dipakai langsung (lebih cepat, tidak bisa hang)
 export const EXPERT_PROMPT = (rawText, accountNames) => `
 Kamu adalah Biyo, akuntan senior berpengalaman 15 tahun yang ahli dalam standar akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP. Kamu memahami konteks bisnis UMKM Indonesia secara mendalam.
 
@@ -117,32 +117,81 @@ export default function ScanNotaModal({ open, onClose }) {
         // No QR found, continue to LLM
       }
 
-        // 2. Real OCR using Tesseract.js with safety timeout
+        // 2. Gemini Vision — baca gambar langsung (seperti Google Lens, tanpa OCR)
         try {
-          const ocrPromise = (async () => {
-            const worker = await createWorker();
-            const { data: { text } } = await worker.recognize(file);
-            await worker.terminate();
-            return text;
-          })();
+          const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+          const GEMINI_MODEL = 'gemini-2.0-flash';
+          const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Batas waktu (timeout) pembacaan nota terlampaui. Silakan upload ulang atau input manual.')), 15000)
-          );
+          // Konversi file gambar ke base64
+          const toBase64 = (f) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(f);
+          });
+          const base64Image = await toBase64(file);
 
-          const ocrText = await Promise.race([ocrPromise, timeoutPromise]);
-
-          // Use LLM to parse the extracted raw text into structured data
+          // Ambil daftar akun
           const accountNames = (await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id })).map(a => a.name);
-          const prompt = EXPERT_PROMPT(ocrText, accountNames);
-          const llmResult = await GoogleGenerativeAI.generate({ prompt, temperature: 0.2, maxTokens: 1024 });
-          const parsed = JSON.parse(llmResult?.choices?.[0]?.message?.content ?? '{}');
-          setExtracted({ ...parsed, receipt_url: url, isDuplicate: (await GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, merchant_name: parsed.merchant_name, amount: parsed.total_amount, date: parsed.date })).length > 0 });
+
+          const visionPrompt = `Kamu adalah Biyo, akuntan senior ahli akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP.
+Analisis GAMBAR nota/struk/faktur ini secara langsung dan ekstrak:
+
+Daftar Akun Tersedia: ${accountNames.join(', ')}
+
+Ekstrak informasi dan jawab dalam format JSON:
+{
+  "total_amount": number,
+  "date": "YYYY-MM-DD",
+  "merchant_name": "string",
+  "type": "Pemasukan" atau "Pengeluaran",
+  "suggested_category": "nama akun dari daftar tersedia",
+  "confidence": number (0-100),
+  "reason": "alasan singkat santai",
+  "is_efaktur": boolean,
+  "nomor_faktur": "string atau null",
+  "npwp_lawan": "string atau null",
+  "dpp": number atau null,
+  "ppn": number atau null
+}`;
+
+          const visionResponse = await fetch(GEMINI_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: visionPrompt },
+                  { inline_data: { mime_type: file.type || 'image/jpeg', data: base64Image } }
+                ]
+              }],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 1024, responseMimeType: 'application/json' }
+            })
+          });
+
+          if (!visionResponse.ok) {
+            const errText = await visionResponse.text();
+            throw new Error(`Gemini Vision gagal: ${visionResponse.status} — ${errText}`);
+          }
+
+          const visionData = await visionResponse.json();
+          const rawText = visionData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+          const parsed = JSON.parse(rawText);
+
+          const isDuplicate = parsed.merchant_name ? (await GoogleGenerativeAI.entities.Transaction.filter({
+            business_id: activeBusiness.id,
+            merchant_name: parsed.merchant_name,
+            amount: parsed.total_amount,
+            date: parsed.date
+          })).length > 0 : false;
+
+          setExtracted({ ...parsed, receipt_url: url, isDuplicate });
           setStep('review');
-          return; // Skip further processing
-        } catch (ocrErr) {
-          console.warn('OCR failed:', ocrErr);
-          throw ocrErr; // Throw to trigger outer catch and prevent hanging!
+          return;
+        } catch (visionErr) {
+          console.warn('Gemini Vision gagal:', visionErr);
+          throw visionErr;
         }
 
     } catch (err) {
