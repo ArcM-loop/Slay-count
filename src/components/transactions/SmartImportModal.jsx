@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import { 
     Upload, 
     FileSpreadsheet, 
@@ -44,26 +45,47 @@ const SmartImportModal = ({ isOpen, onClose, onComplete }) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Simulasi pembacaan CSV sederhana
+        visualizerStore.startAction('DataAgent', 'Membaca file Excel/CSV secara pintar...');
+        
         const reader = new FileReader();
         reader.onload = (event) => {
-            const text = event.target.result;
-            const lines = text.split('\n').filter(line => line.trim() !== '');
-            const headers = lines[0].split(',').map(h => h.trim());
-            const rows = lines.slice(1).map(line => line.split(',').map(c => c.trim()));
+            try {
+                const data = new Uint8Array(event.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // Ambil sheet pertama
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // Konversi worksheet ke array of arrays (2D Array)
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                
+                if (jsonData.length === 0) {
+                    throw new Error("File Excel kosong atau tidak terbaca.");
+                }
 
-            setFileData({ headers, rows, fileName: file.name });
-            
-            // AI Analyze Columns
-            visualizerStore.startAction('DataAgent', 'Membaca struktur file Excel...');
-            setTimeout(() => {
-                const initialMapping = analyzeColumns(headers);
-                setMapping(initialMapping);
-                setStep(2);
-                visualizerStore.endAction('Struktur file berhasil dipetakan.', 2000);
-            }, 500); // Simulate slight delay for effect
+                // Baris pertama adalah headers
+                const headers = jsonData[0].map(h => String(h || '').trim());
+                // Baris selanjutnya adalah rows
+                const rows = jsonData.slice(1).map(row => row.map(c => String(c || '').trim()));
+
+                setFileData({ headers, rows, fileName: file.name });
+
+                // AI Analyze Columns
+                setTimeout(() => {
+                    const initialMapping = analyzeColumns(headers);
+                    setMapping(initialMapping);
+                    setStep(2);
+                    visualizerStore.endAction('Struktur file berhasil dipetakan.', 2000);
+                }, 500);
+
+            } catch (err) {
+                console.error(err);
+                alert("Gagal membaca file: " + err.message);
+                visualizerStore.endAction('Gagal membaca file.', 2000);
+            }
         };
-        reader.readAsText(file);
+        reader.readAsArrayBuffer(file);
     };
 
     const handleStartReview = () => {

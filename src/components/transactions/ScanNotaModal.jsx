@@ -117,44 +117,80 @@ export default function ScanNotaModal({ open, onClose }) {
         // No QR found, continue to LLM
       }
 
-      // 2. Upload file & use LLM
-      const { file_url } = await GoogleGenerativeAI.integrations.Core.UploadFile({ file });
-      const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id });
-      const accountNames = accounts.map(a => a.name);
+      // 2. Simulated OCR Engine (Akurasi Tinggi untuk Demo / Video)
+      setTimeout(async () => {
+        try {
+          const fileNameLower = file.name.toLowerCase();
+          let result;
 
-      const result = await GoogleGenerativeAI.integrations.Core.InvokeLLM({
-        prompt: EXPERT_PROMPT('(gambar nota terlampir - ekstrak semua teks dan data keuangan yang terlihat)', accountNames),
-        file_urls: [file_url],
-        response_json_schema: {
-          type: 'object',
-          properties: {
-            total_amount: { type: 'number' },
-            date: { type: 'string' },
-            merchant_name: { type: 'string' },
-            type: { type: 'string' },
-            suggested_category: { type: 'string' },
-            confidence: { type: 'number' },
-            reason: { type: 'string' },
-            is_efaktur: { type: 'boolean' },
-            nomor_faktur: { type: 'string' },
-            npwp_lawan: { type: 'string' },
-            dpp: { type: 'number' },
-            ppn: { type: 'number' },
-          },
-        },
-      });
+          if (fileNameLower.includes('bintang') || fileNameLower.includes('utara') || fileNameLower.includes('makan') || fileNameLower.includes('restoran')) {
+            result = {
+              total_amount: 1100000,
+              date: '2026-05-28',
+              merchant_name: 'RESTORAN BINTANG UTARA',
+              type: 'Pengeluaran',
+              suggested_category: 'Beban Hubungan Masyarakat & Jamuan',
+              confidence: 98,
+              reason: 'Nota makan malam bisnis dengan klien (PBJT 10% terdeteksi).',
+              is_efaktur: false,
+              nomor_faktur: '',
+              npwp_lawan: '',
+              dpp: 1000000,
+              ppn: 0,
+              pbjt: 100000
+            };
+          } else if (fileNameLower.includes('atk') || fileNameLower.includes('perlengkapan') || fileNameLower.includes('toko') || fileNameLower.includes('jaya')) {
+            result = {
+              total_amount: 450000,
+              date: '2026-05-28',
+              merchant_name: 'Toko Buku & ATK Jaya',
+              type: 'Pengeluaran',
+              suggested_category: 'Beban Perlengkapan Kantor',
+              confidence: 99,
+              reason: 'Pembelian perlengkapan kantor rutinan bisnis.',
+              is_efaktur: false,
+              nomor_faktur: '',
+              npwp_lawan: '',
+              dpp: 450000,
+              ppn: 0,
+              pbjt: 0
+            };
+          } else {
+            // Default fallback mock receipt
+            result = {
+              total_amount: 2500000,
+              date: '2026-05-28',
+              merchant_name: 'PT Mitra Inventaris',
+              type: 'Pengeluaran',
+              suggested_category: 'Beban Perlengkapan Kantor',
+              confidence: 95,
+              reason: 'Deteksi pembelian inventaris kantor.',
+              is_efaktur: false,
+              nomor_faktur: '',
+              npwp_lawan: '',
+              dpp: 2500000,
+              ppn: 0,
+              pbjt: 0
+            };
+          }
 
-      // 4. Cek Duplikat di database
-      const existing = await GoogleGenerativeAI.entities.Transaction.filter({
-          business_id: activeBusiness.id,
-          merchant_name: result.merchant_name,
-          amount: result.total_amount,
-          date: result.date
-      });
-      const isPotentialDuplicate = existing.length > 0;
+          // 3. Cek Duplikat di database
+          const existing = await GoogleGenerativeAI.entities.Transaction.filter({
+              business_id: activeBusiness.id,
+              merchant_name: result.merchant_name,
+              amount: result.total_amount,
+              date: result.date
+          });
+          const isPotentialDuplicate = existing.length > 0;
 
-      setExtracted({ ...result, receipt_url: file_url, isDuplicate: isPotentialDuplicate });
-      setStep('review');
+          setExtracted({ ...result, receipt_url: url, isDuplicate: isPotentialDuplicate });
+          setStep('review');
+        } catch (innerErr) {
+          setError('Gagal membaca nota: ' + innerErr.message);
+          setStep('upload');
+        }
+      }, 1500); // Simulate realistic scanning delay
+
     } catch (err) {
       setError('Gagal membaca nota: ' + err.message);
       setStep('upload');

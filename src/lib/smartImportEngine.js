@@ -58,11 +58,28 @@ export const cleanData = (rows, mapping, coaSuggestions = []) => {
         const rawCategory = row[mapping.category?.index] || '';
         const rawRef = row[mapping.reference?.index] || '';
 
+        let amountVal = row[mapping.amount?.index];
+        // Skenario 2 Kolom (Debet / Kredit): Jika kosong, nol, atau '-', cari kolom angka lainnya di baris yang sama!
+        if (!amountVal || String(amountVal).trim() === '-' || String(amountVal).trim() === '' || parseFloat(String(amountVal).replace(/[^0-9.-]+/g, "")) === 0) {
+            for (let i = 0; i < row.length; i++) {
+                if (i !== mapping.date?.index && i !== mapping.description?.index && i !== mapping.reference?.index && i !== mapping.category?.index) {
+                    const candidate = String(row[i]).trim();
+                    if (candidate && candidate !== '-' && /[0-9]/.test(candidate)) {
+                        const parsedCand = parseFloat(candidate.replace(/[^0-9.-]+/g, ""));
+                        if (parsedCand > 0) {
+                            amountVal = candidate;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         const cleanedRow = {
             date: rawDate.trim() || new Date().toISOString().split('T')[0],
             // [CVE-9 Fixed by Herta] — Semua teks yang rentan di-sanitasi ketat
             description: sanitizeValue(rawDesc),
-            amount: parseFloat(String(row[mapping.amount?.index]).replace(/[^0-9.-]+/g, "")) || 0,
+            amount: parseFloat(String(amountVal || 0).replace(/[^0-9.-]+/g, "")) || 0,
             category: rawCategory ? sanitizeValue(rawCategory) : null,
             reference: sanitizeValue(rawRef),
             confidence: 0,
