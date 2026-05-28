@@ -9,7 +9,7 @@ import { Loader2, Upload, Camera, Sparkles, CheckCircle, QrCode, ShieldAlert } f
 import { formatRupiah } from '@/lib/formatters';
 import { Html5Qrcode } from 'html5-qrcode';
 import { validateJournalWithSwarm } from '@/lib/journalEngine';
-
+import { createWorker } from 'tesseract.js';
 const EXPERT_PROMPT = (rawText, accountNames) => `
 Kamu adalah Biyo, akuntan senior berpengalaman 15 tahun yang ahli dalam standar akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP. Kamu memahami konteks bisnis UMKM Indonesia secara mendalam.
 
@@ -119,7 +119,6 @@ export default function ScanNotaModal({ open, onClose }) {
 
         // 2. Real OCR using Tesseract.js for high fidelity text extraction
         try {
-          const { createWorker } = await import('tesseract.js');
           const worker = await createWorker({ logger: m => console.log(m) });
           await worker.loadLanguage('eng');
           await worker.initialize('eng');
