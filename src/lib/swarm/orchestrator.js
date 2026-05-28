@@ -17,11 +17,24 @@ import { callWorkerSwarm, callAuditorSwarm, callCFOSwarm, getSwarmUsageStats } f
 import { MemoryEngine } from './memoryEngine';
 import { ConsensusArbitrator } from './agents/meta/consensusArbitrator';
 
+import { scanAgent } from '../agents/scanAgent';
+import { importAgent } from '../agents/importAgent';
+
 export class SwarmOrchestrator {
   constructor(agents = []) {
-    this.agents = agents;
-    this.workerAgents = agents.filter(a => (a.tier || 1) === 1);
-    this.arbitratorAgents = agents.filter(a => a.tier === 2);
+    // Elegant Herta Integration: Register scan and import agents dynamically if not already present
+    const defaultAgents = [scanAgent, importAgent];
+    const uniqueAgents = [...agents];
+    
+    defaultAgents.forEach(da => {
+      if (!uniqueAgents.some(a => a.name === da.name)) {
+        uniqueAgents.push(da);
+      }
+    });
+
+    this.agents = uniqueAgents;
+    this.workerAgents = uniqueAgents.filter(a => (a.tier || 1) === 1);
+    this.arbitratorAgents = uniqueAgents.filter(a => a.tier === 2);
   }
 
   static ai = { callWorkerSwarm, callAuditorSwarm, callCFOSwarm, getSwarmUsageStats, callGemini, callLlama, callGPT };

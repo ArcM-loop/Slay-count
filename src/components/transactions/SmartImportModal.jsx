@@ -88,11 +88,11 @@ const SmartImportModal = ({ isOpen, onClose, onComplete }) => {
         reader.readAsArrayBuffer(file);
     };
 
-    const handleStartReview = () => {
+    const handleStartReview = async () => {
         visualizerStore.startAction('AuditAgent', 'Membersihkan dan menstandarisasi format data...');
         // Gunakan Engine untuk bersihkan data berdasarkan mapping user
-        setTimeout(() => {
-            const result = cleanData(fileData.rows, mapping, [
+        try {
+            const result = await cleanData(fileData.rows, mapping, [
                 { name: 'Beban Operasional', keywords: ['listrik', 'air', 'internet', 'telkom'] },
                 { name: 'Beban Kendaraan', keywords: ['bensin', 'parkir', 'service', 'pertamina'] },
                 { name: 'Beban Gaji', keywords: ['gaji', 'bonus', 'thr'] },
@@ -101,7 +101,10 @@ const SmartImportModal = ({ isOpen, onClose, onComplete }) => {
             setCleanedData(result);
             setStep(3);
             visualizerStore.endAction('Data berhasil dibersihkan.', 2000);
-        }, 500);
+        } catch (err) {
+            console.error(err);
+            visualizerStore.endAction('Gagal memproses data.', 2000);
+        }
     };
 
     const handleFinalImport = () => {

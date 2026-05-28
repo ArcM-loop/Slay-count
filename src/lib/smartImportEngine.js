@@ -51,8 +51,8 @@ const sanitizeValue = (val) => {
     return trimmed;
 };
 
-export const cleanData = (rows, mapping, coaSuggestions = []) => {
-    return rows.map(row => {
+export const cleanData = async (rows, mapping, coaSuggestions = []) => {
+    return Promise.all(rows.map(async row => {
         const rawDate = row[mapping.date?.index] || '';
         const rawDesc = row[mapping.description?.index] || 'Tanpa Keterangan';
         const rawCategory = row[mapping.category?.index] || '';
@@ -111,5 +111,5 @@ export const cleanData = (rows, mapping, coaSuggestions = []) => {
         }
 
         return cleanedRow;
-    });
+    }));
 };

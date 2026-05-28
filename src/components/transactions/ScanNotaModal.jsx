@@ -10,7 +10,7 @@ import { formatRupiah } from '@/lib/formatters';
 import { Html5Qrcode } from 'html5-qrcode';
 import { validateJournalWithSwarm } from '@/lib/journalEngine';
 import { createWorker } from 'tesseract.js';
-const EXPERT_PROMPT = (rawText, accountNames) => `
+export const EXPERT_PROMPT = (rawText, accountNames) => `
 Kamu adalah Biyo, akuntan senior berpengalaman 15 tahun yang ahli dalam standar akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP. Kamu memahami konteks bisnis UMKM Indonesia secara mendalam.
 
 Analisis teks dari nota/struk/Faktur Pajak berikut dan ekstrak informasi keuangannya:
