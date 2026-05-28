@@ -119,9 +119,7 @@ export default function ScanNotaModal({ open, onClose }) {
 
         // 2. Real OCR using Tesseract.js for high fidelity text extraction
         try {
-          const worker = await createWorker({ logger: m => console.log(m) });
-          await worker.loadLanguage('eng');
-          await worker.initialize('eng');
+          const worker = await createWorker();
           const { data: { text: ocrText } } = await worker.recognize(file);
           await worker.terminate();
 

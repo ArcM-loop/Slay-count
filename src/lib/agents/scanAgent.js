@@ -20,9 +20,7 @@ export const scanAgent = {
    */
   async process(file, businessId) {
     // 1️⃣ OCR
-    const worker = await createWorker({ logger: () => {} });
-    await worker.loadLanguage('eng+ind');
-    await worker.initialize('ind');
+    const worker = await createWorker();
     const { data: { text: rawText } } = await worker.recognize(file);
     await worker.terminate();
 
