@@ -35,16 +35,21 @@ export default function AddTransactionModal({ open, onClose }) {
   const handleAccountChange = (accountId) => {
     const account = accounts.find(a => a.id === accountId);
     if (account) {
-      const detectedTax = detectTaxType(account.name);
-      const rule = TAX_RULES[detectedTax];
-      const taxAmt = form.amount ? calculateTax(parseFloat(form.amount), detectedTax) : 0;
+      const { hasPPN, pphType } = detectTaxType(account.name);
+      let taxType = 'NONE';
+      if (hasPPN) taxType = 'PPN';
+      else if (pphType === '21') taxType = 'PPH_21';
+      else if (pphType === '23') taxType = 'PPH_23';
+
+      const rule = TAX_RULES[taxType];
+      const taxAmt = form.amount ? calculateTax(parseFloat(form.amount), taxType) : 0;
       setForm(f => ({
         ...f,
         account_id: accountId,
-        tax_type: detectedTax,
+        tax_type: taxType,
         tax_rate: rule?.rate || 0,
         tax_amount: taxAmt,
-        is_deductible: detectedTax === 'NONE' ? true : (rule?.type !== 'none'),
+        is_deductible: taxType === 'NONE' ? true : (rule?.category !== 'none'),
       }));
     } else {
       setForm(f => ({ ...f, account_id: accountId }));
@@ -104,7 +109,7 @@ export default function AddTransactionModal({ open, onClose }) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 mt-2">
+        <div className="max-h-[70vh] overflow-y-auto pr-1.5 space-y-4 mt-2">
           {/* Type selector */}
           <div className="flex gap-2">
             {types.map(t => (

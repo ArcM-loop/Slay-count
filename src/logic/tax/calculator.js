@@ -149,7 +149,14 @@ function calculateProgressiveTax(taxableIncome) {
 // ─── MISSING EXPORTS (dibutuhkan oleh komponen) ───────────────────────────
 
 /** Alias untuk backward compatibility dengan komponen yang import TAX_RULES */
-export const TAX_RULES = TAX_POLICIES;
+/** Kamus Kebijakan Pajak Unifikasi (CoreTax Ready) untuk Selektor UI */
+export const TAX_RULES = {
+  'NONE': { category: 'Tidak Kena Pajak', label: 'Tanpa Pajak / Non-BKP', rate: 0 },
+  'PPN': { category: 'PPN', label: 'PPN Pusat (11%)', rate: 0.11 },
+  'PPH_21': { category: 'PPh', label: 'PPh Pasal 21 (Gaji/Upah)', rate: 0.05 },
+  'PPH_23': { category: 'PPh', label: 'PPh Pasal 23 (Jasa/Sewa)', rate: 0.02 },
+  'PPH_4_2': { category: 'PPh', label: 'PPh Pasal 4 ayat (2) (Final)', rate: 0.10 },
+};
 
 /**
  * Mendeteksi jenis pajak berdasarkan nama akun transaksi.
@@ -166,8 +173,25 @@ export function detectTaxType(accountName = '', business = {}) {
   return { hasPPN, hasPPh: pphType !== 'none', pphType };
 }
 
-/** Alias calculateTax → calculateSmartTax untuk komponen yang menggunakan nama lama */
-export const calculateTax = calculateSmartTax;
+/** Menghitung nominal pajak berdasarkan kode jenis pajak */
+export function calculateTax(amount, taxType) {
+  if (!amount) return 0;
+  // Jika parameter berupa objek (hasil deteksi otomatis), ekstrak tipenya
+  let type = taxType;
+  if (typeof taxType === 'object' && taxType !== null) {
+    const { hasPPN, pphType } = taxType;
+    if (hasPPN) type = 'PPN';
+    else if (pphType === '21') type = 'PPH_21';
+    else if (pphType === '23') type = 'PPH_23';
+    else type = 'NONE';
+  }
+
+  if (type === 'PPN') return Math.floor(amount * 0.11);
+  if (type === 'PPH_21') return Math.floor(amount * 0.05);
+  if (type === 'PPH_23') return Math.floor(amount * 0.02);
+  if (type === 'PPH_4_2') return Math.floor(amount * 0.10);
+  return 0;
+}
 
 /**
  * Menghitung estimasi PPh Badan (Tarif 22% x Laba Fiskal).
