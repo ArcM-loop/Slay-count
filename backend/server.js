@@ -60,7 +60,7 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '1mb' })); // Batasi ukuran body request
+app.use(express.json({ limit: '10mb' })); // Batasi ukuran body request (ditingkatkan untuk mendukung base64 nota/faktur)
 app.use(cookieParser());
 
 // Global Rate Limiting

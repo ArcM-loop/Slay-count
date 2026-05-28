@@ -88,7 +88,8 @@ router.post('/generate', requireAuth, aiLimiter, async (req, res) => {
         generationConfig: {
           temperature,
           maxOutputTokens: purpose === 'worker' ? 1024 : 2048,
-          ...(jsonMode && { responseMimeType: 'application/json' })
+          ...(jsonMode && { responseMimeType: 'application/json' }),
+          ...(req.body.stopSequences && { stopSequences: req.body.stopSequences })
         },
         safetySettings: [
           { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
