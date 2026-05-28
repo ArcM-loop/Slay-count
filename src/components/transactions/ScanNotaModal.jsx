@@ -117,12 +117,8 @@ export default function ScanNotaModal({ open, onClose }) {
         // No QR found, continue to LLM
       }
 
-        // 2. Gemini Vision — baca gambar langsung (seperti Google Lens, tanpa OCR)
+        // 2. Gemini Vision — dipanggil aman lewat proxy backend (tanpa bocorin API key)
         try {
-          const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-          const GEMINI_MODEL = 'gemini-2.0-flash';
-          const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-
           // Konversi file gambar ke base64
           const toBase64 = (f) => new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -156,28 +152,15 @@ Ekstrak informasi dan jawab dalam format JSON:
   "ppn": number atau null
 }`;
 
-          const visionResponse = await fetch(GEMINI_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: visionPrompt },
-                  { inline_data: { mime_type: file.type || 'image/jpeg', data: base64Image } }
-                ]
-              }],
-              generationConfig: { temperature: 0.1, maxOutputTokens: 1024, responseMimeType: 'application/json' }
-            })
+          const llmResult = await GoogleGenerativeAI.generate({
+            prompt: visionPrompt,
+            temperature: 0.1,
+            jsonMode: true,
+            image: base64Image,
+            mimeType: file.type || 'image/jpeg'
           });
 
-          if (!visionResponse.ok) {
-            const errText = await visionResponse.text();
-            throw new Error(`Gemini Vision gagal: ${visionResponse.status} — ${errText}`);
-          }
-
-          const visionData = await visionResponse.json();
-          const rawText = visionData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-          const parsed = JSON.parse(rawText);
+          const parsed = JSON.parse(llmResult?.choices?.[0]?.message?.content ?? '{}');
 
           const isDuplicate = parsed.merchant_name ? (await GoogleGenerativeAI.entities.Transaction.filter({
             business_id: activeBusiness.id,

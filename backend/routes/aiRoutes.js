@@ -73,11 +73,21 @@ router.post('/generate', requireAuth, aiLimiter, async (req, res) => {
     try {
       const url = `${GEMINI_API_BASE}/${MODEL}:generateContent?key=${apiKey}`;
 
+      const parts = [{ text: prompt }];
+      if (req.body.image && req.body.mimeType) {
+        parts.push({
+          inlineData: {
+            mimeType: req.body.mimeType,
+            data: req.body.image
+          }
+        });
+      }
+
       const requestBody = {
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts }],
         generationConfig: {
           temperature,
-          maxOutputTokens: purpose === 'worker' ? 512 : 2048,
+          maxOutputTokens: purpose === 'worker' ? 1024 : 2048,
           ...(jsonMode && { responseMimeType: 'application/json' })
         },
         safetySettings: [
