@@ -66,6 +66,43 @@ export const GoogleGenerativeAI = {
     }
   },
 
+  generate: async ({ prompt, temperature = 0.2, maxTokens = 1024, jsonMode = true }) => {
+    const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/ai/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          prompt,
+          purpose: 'worker',
+          temperature,
+          jsonMode
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI Request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const contentString = typeof data.result === 'object' ? JSON.stringify(data.result) : data.result;
+
+      return {
+        choices: [
+          {
+            message: {
+              content: contentString
+            }
+          }
+        ]
+      };
+    } catch (error) {
+      console.error('[GoogleGenerativeAI.generate] Error:', error);
+      throw error;
+    }
+  },
+
   MODELS: {
     FAST: "gemini-3-flash",
     DEEP: "gemini-3-pro",

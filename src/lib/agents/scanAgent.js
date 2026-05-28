@@ -19,10 +19,19 @@ export const scanAgent = {
    * @returns {Promise<Object>} parsed transaction data + receipt_url + isDuplicate
    */
   async process(file, businessId) {
-    // 1️⃣ OCR
-    const worker = await createWorker();
-    const { data: { text: rawText } } = await worker.recognize(file);
-    await worker.terminate();
+    // 1️⃣ OCR with safety timeout
+    const ocrPromise = (async () => {
+      const worker = await createWorker();
+      const { data: { text } } = await worker.recognize(file);
+      await worker.terminate();
+      return text;
+    })();
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Batas waktu (timeout) pembacaan nota terlampaui.')), 15000)
+    );
+
+    const rawText = await Promise.race([ocrPromise, timeoutPromise]);
 
     // 2️⃣ Build LLM prompt (reuse same prompt as UI)
     const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: businessId });

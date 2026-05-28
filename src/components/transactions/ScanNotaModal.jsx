@@ -117,11 +117,20 @@ export default function ScanNotaModal({ open, onClose }) {
         // No QR found, continue to LLM
       }
 
-        // 2. Real OCR using Tesseract.js for high fidelity text extraction
+        // 2. Real OCR using Tesseract.js with safety timeout
         try {
-          const worker = await createWorker();
-          const { data: { text: ocrText } } = await worker.recognize(file);
-          await worker.terminate();
+          const ocrPromise = (async () => {
+            const worker = await createWorker();
+            const { data: { text } } = await worker.recognize(file);
+            await worker.terminate();
+            return text;
+          })();
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Batas waktu (timeout) pembacaan nota terlampaui. Silakan upload ulang atau input manual.')), 15000)
+          );
+
+          const ocrText = await Promise.race([ocrPromise, timeoutPromise]);
 
           // Use LLM to parse the extracted raw text into structured data
           const accountNames = (await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id })).map(a => a.name);
@@ -132,7 +141,8 @@ export default function ScanNotaModal({ open, onClose }) {
           setStep('review');
           return; // Skip further processing
         } catch (ocrErr) {
-          console.warn('OCR failed, falling back to simulated heuristics', ocrErr);
+          console.warn('OCR failed:', ocrErr);
+          throw ocrErr; // Throw to trigger outer catch and prevent hanging!
         }
 
     } catch (err) {
