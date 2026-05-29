@@ -67,6 +67,7 @@ export const GoogleGenerativeAI = {
   },
 
   generate: async ({ prompt, temperature = 0.2, maxTokens = 1024, jsonMode = true, image = null, mimeType = null, stopSequences = null }) => {
+    console.log('DEBUG Herta - Vite Env:', import.meta.env);
     const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
     try {
       const response = await fetch(`${BACKEND_URL}/api/ai/generate`, {

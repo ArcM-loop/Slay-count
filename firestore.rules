@@ -84,8 +84,8 @@ service cloud.firestore {
     // AUDIT LOGS — APPEND-ONLY, TIDAK BISA DIUBAH ATAU DIHAPUS
     // ═══════════════════════════════════════════════════════════════
     match /audit_logs/{docId} {
-      allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
-      allow create: if false;  // DIBLOKIR — hanya server yang bisa membuat log
+      allow read:   if isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update: if false;  // DIBLOKIR — log tidak boleh diubah
       allow delete: if false;  // DIBLOKIR — log tidak boleh dihapus (immutable)
     }

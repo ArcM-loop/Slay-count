@@ -254,8 +254,13 @@ function ValidationCard({ tx, accounts, duplicates = new Set(), onFinalize, onRe
         if (!accountId || !paymentAccountId) return;
         setSaving(true);
         setExploding(true);
-        await onFinalize(tx, accountId, paymentAccountId);
-        setSaving(false);
+        try {
+            await onFinalize(tx, accountId, paymentAccountId);
+        } catch (err) {
+            console.error('[Validasi] Finalisasi gagal:', err);
+        } finally {
+            setSaving(false);
+        }
     };
 
     const categoryEmoji = (name) => {
