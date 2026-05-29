@@ -72,8 +72,8 @@ export default function AIAccuracyDashboard() {
     queryKey: ['all-transactions-ai', activeBusiness?.id],
     queryFn: async () => {
       const [final, inbox] = await Promise.all([
-        GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, status: 'Final' }, '-created_date'),
-        GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, status: 'Inbox' }, '-created_date'),
+        GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, status: 'Final' }, '-created_at'),
+        GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, status: 'Inbox' }, '-created_at'),
       ]);
       return [...final, ...inbox];
     },

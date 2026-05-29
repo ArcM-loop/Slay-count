@@ -17,6 +17,7 @@ const JournalEntrySchema = z.object({
   account_id: z.string().min(1),
   account_code: z.string().optional(),
   account_name: z.string().optional(),
+  account_type: z.string().optional(),
   debit:  z.number().optional().default(0),
   credit: z.number().optional().default(0),
   description: z.string().optional(),

@@ -27,8 +27,8 @@ router.post('/login', async (req, res) => {
     // Security Patch #1: Simpan di HttpOnly Cookie
     res.cookie('slaycount_token', sessionToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: true, // Wajib secure: true agar sameSite: 'none' bekerja
+      sameSite: 'none', // Izinkan cross-origin cookie untuk lintas domain Cloud Run
       maxAge: 3600000 // 1 jam
     });
 
@@ -52,7 +52,11 @@ router.get('/verify', (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
-  res.clearCookie('slaycount_token');
+  res.clearCookie('slaycount_token', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none'
+  });
   res.json({ message: 'Logged out' });
 });
 

@@ -57,7 +57,7 @@ export default function SiklusAkuntansi() {
 
     const { data: closingHistory = [] } = useQuery({
         queryKey: ['period-closings', activeBusiness?.id],
-        queryFn: () => GoogleGenerativeAI.entities.PeriodClosing.filter({ business_id: activeBusiness.id }, '-created_date', 20),
+        queryFn: () => GoogleGenerativeAI.entities.PeriodClosing.filter({ business_id: activeBusiness.id }, '-created_at', 20),
         enabled: !!activeBusiness,
     });
 

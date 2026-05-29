@@ -10,7 +10,17 @@
  * Frontend tidak perlu tahu tentang API key. Zero exposure.
  */
 
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const getBackendUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.startsWith('http')) {
+    if (import.meta.env.PROD && (window.location.hostname.includes('slaycount') || window.location.hostname.includes('run.app') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp'))) {
+      return window.location.origin;
+    }
+    return envUrl;
+  }
+  return 'http://localhost:5000';
+};
+const BACKEND_URL = getBackendUrl();
 
 // State internal untuk usage tracking (statistik saja, bukan key)
 let usageStats = {

@@ -281,6 +281,7 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
       account_id: tx.account_id,
       account_code: account?.code || '',
       account_name: account?.name || 'Beban',
+      account_type: account?.type || 'Beban',
       debit: dpp,
       credit: 0,
       description: txDesc
@@ -292,6 +293,7 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
         account_id: ppnMasukanAcc.id,
         account_code: ppnMasukanAcc.code || '',
         account_name: ppnMasukanAcc.name,
+        account_type: ppnMasukanAcc.type || 'Aset',
         debit: ppnAmount,
         credit: 0,
         description: `PPN Masukan - ${txDesc}`
@@ -304,6 +306,7 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
         account_id: hutangPPhAcc.id,
         account_code: hutangPPhAcc.code || '',
         account_name: hutangPPhAcc.name,
+        account_type: hutangPPhAcc.type || 'Kewajiban',
         debit: 0,
         credit: pphAmount,
         description: `PPh ${tx.pph_type || ''} Dipotong - ${txDesc}`
@@ -315,6 +318,7 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
       account_id: paymentAccountId,
       account_code: paymentAccount?.code || '',
       account_name: paymentAccount?.name || 'Kas/Bank',
+      account_type: paymentAccount?.type || 'Aset',
       debit: 0,
       credit: totalKas,
       description: txDesc
@@ -326,6 +330,7 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
       account_id: paymentAccountId,
       account_code: paymentAccount?.code || '',
       account_name: paymentAccount?.name || 'Kas/Bank',
+      account_type: paymentAccount?.type || 'Aset',
       debit: totalKas,
       credit: 0,
       description: txDesc
@@ -337,6 +342,7 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
         account_id: hutangPPhAcc.id,
         account_code: hutangPPhAcc.code || '',
         account_name: hutangPPhAcc.name,
+        account_type: hutangPPhAcc.type || 'Kewajiban',
         debit: pphAmount,
         credit: 0,
         description: `PPh ${tx.pph_type || ''} Dipungut - ${txDesc}`
@@ -348,6 +354,7 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
       account_id: tx.account_id,
       account_code: account?.code || '',
       account_name: account?.name || 'Pendapatan',
+      account_type: account?.type || 'Pendapatan',
       debit: 0,
       credit: dpp,
       description: txDesc
@@ -359,6 +366,7 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
         account_id: ppnKeluaranAcc.id,
         account_code: ppnKeluaranAcc.code || '',
         account_name: ppnKeluaranAcc.name,
+        account_type: ppnKeluaranAcc.type || 'Kewajiban',
         debit: 0,
         credit: ppnAmount,
         description: `PPN Keluaran - ${txDesc}`

@@ -32,7 +32,7 @@ export default function PurchaseOrderPage() {
   const { data: purchaseOrders = [], isLoading } = useQuery({
     queryKey: ['purchase-orders', activeBusiness?.id],
     queryFn: () => GoogleGenerativeAI.entities.PurchaseOrder.filter(
-      { business_id: activeBusiness.id }, '-created_date'
+      { business_id: activeBusiness.id }, '-created_at'
     ),
     enabled: !!activeBusiness,
   });

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Loader2, CheckCircle, X, Bot, Zap, ShieldAlert, RefreshCw, AlertCircle } from 'lucide-react';
 import ParticleExplosion from '@/components/hud/ParticleExplosion';
 import HudTypewriter from '@/components/hud/HudTypewriter';
+import { toast } from 'sonner';
 
 export default function Validasi() {
     const { activeBusiness } = useBusiness();
@@ -31,7 +32,7 @@ export default function Validasi() {
 
     const { data: inboxTx = [], isLoading } = useQuery({
         queryKey: ['transactions-inbox', activeBusiness?.id],
-        queryFn: () => GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, status: 'Inbox' }, '-created_date'),
+        queryFn: () => GoogleGenerativeAI.entities.Transaction.filter({ business_id: activeBusiness.id, status: 'Inbox' }, '-created_at'),
         enabled: !!activeBusiness,
     });
 
@@ -80,23 +81,31 @@ export default function Validasi() {
 
         const account = accounts.find(a => a.id === accountId);
         
-        // 1. Catat Audit Log (Before-After)
-        await logAudit({
-            action: AUDIT_ACTIONS.UPDATE,
-            entityType: 'TRANSACTION',
-            entityId: tx.id,
-            before: tx,
-            after: { ...tx, status: 'Final', account_id: accountId },
-            reason: 'User validation and finalization'
-        });
+        try {
+            // 1. Panggil createJournalEntries terlebih dahulu (ini akan memvalidasi & menulis jurnal ke server)
+            // Dan jika sukses, createJournalEntries di dalam journalEngine.js juga akan mengupdate 
+            // status transaksi menjadi 'Final' dan menyimpan journal_id-nya secara aman!
+            const updatedTx = { ...tx, account_id: accountId, account_name: account?.name || '' };
+            await createJournalEntries(updatedTx, accounts, paymentAccountId);
 
-        await GoogleGenerativeAI.entities.Transaction.update(tx.id, {
-            status: 'Final',
-            account_id: accountId,
-            account_name: account?.name || '',
-        });
-        const updatedTx = { ...tx, account_id: accountId, account_name: account?.name || '' };
-        await createJournalEntries(updatedTx, accounts, paymentAccountId);
+            // 2. Catat Audit Log (Hanya jika sukses berkomitmen jurnal)
+            await logAudit({
+                action: AUDIT_ACTIONS.UPDATE,
+                entityType: 'TRANSACTION',
+                entityId: tx.id,
+                before: tx,
+                after: { ...tx, status: 'Final', account_id: accountId },
+                reason: 'User validation and finalization successful'
+            });
+
+            toast.success("🎉 Transaksi berhasil divalidasi & Jurnal dicatat ke Ledger!");
+        } catch (error) {
+            console.error('[Validasi] Gagal melakukan finalisasi:', error);
+            toast.error(`Gagal Finalisasi: ${error.message}`);
+            // PENTING: Karena createJournalEntries gagal, status di database tetap 'Inbox',
+            // transaksi tidak hangus atau hilang dari list Inbox!
+            throw error; // Lempar kembali agar loading/saving state di UI berhenti dengan benar
+        }
 
         queryClient.invalidateQueries({ queryKey: ['transactions-inbox', activeBusiness?.id] });
         queryClient.invalidateQueries({ queryKey: ['transactions', activeBusiness?.id] });
