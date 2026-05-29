@@ -132,7 +132,11 @@ export default function ScanNotaModal({ open, onClose }) {
           const accountNames = (await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id })).map(a => a.name);
 
           const visionPrompt = `Kamu adalah Biyo, akuntan senior ahli akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP.
-Analisis GAMBAR nota/struk/faktur ini secara langsung dan ekstrak:
+Analisis GAMBAR nota/struk/faktur ini secara langsung dan ekstrak.
+
+PENTING & KRITIS: Jangan berhalusinasi atau mencocokkan dengan template nota imajiner! 
+- Jika gambar yang diberikan bukan berupa nota/struk/faktur belanja riil (misal gambar kosong, gambar pemandangan, dsb), berikan respons JSON berikut secara mutlak: {"error": "Bukan nota belanja yang valid"}
+- Jika gambar adalah nota valid, ekstrak data riil dari teks yang terlihat di gambar tersebut.
 
 Daftar Akun Tersedia: ${accountNames.join(', ')}
 
@@ -160,14 +164,33 @@ Ekstrak informasi dan jawab dalam format JSON:
             mimeType: file.type || 'image/jpeg'
           });
 
-          const parsed = JSON.parse(llmResult?.choices?.[0]?.message?.content ?? '{}');
+          let rawContent = llmResult?.choices?.[0]?.message?.content ?? '{}';
+          // Pembersihan Jenius Herta: Hapus pembungkus markdown JSON jika ada
+          if (rawContent.includes('```')) {
+            rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+          }
 
-          const isDuplicate = parsed.merchant_name ? (await GoogleGenerativeAI.entities.Transaction.filter({
+          const parsed = JSON.parse(rawContent);
+
+          if (parsed.error) {
+            setError(parsed.error);
+            setStep('upload');
+            return;
+          }
+
+          // Normalisasi merchant name untuk deteksi duplikat yang lebih pintar
+          const cleanMerchant = (parsed.merchant_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+          const existingTx = await GoogleGenerativeAI.entities.Transaction.filter({
             business_id: activeBusiness.id,
-            merchant_name: parsed.merchant_name,
             amount: parsed.total_amount,
             date: parsed.date
-          })).length > 0 : false;
+          });
+
+          const isDuplicate = existingTx.some(tx => {
+            const txMerchant = (tx.merchant_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return txMerchant.includes(cleanMerchant) || cleanMerchant.includes(txMerchant);
+          });
 
           setExtracted({ ...parsed, receipt_url: url, isDuplicate });
           setStep('review');
