@@ -96,9 +96,8 @@ const SmartImportModal = ({ isOpen, onClose, onComplete }) => {
         try {
             // Tarik daftar akun riil dari Firestore untuk memandu Biyo AI menentukan kategori
             const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id });
-            const accountNames = accounts.map(a => a.name);
 
-            const result = await cleanData(fileData.rows, mapping, accountNames);
+            const result = await cleanData(fileData.rows, mapping, accounts);
             setCleanedData(result);
             setStep(3);
             visualizerStore.endAction('Data berhasil dibersihkan.', 2000);

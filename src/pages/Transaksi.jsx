@@ -15,6 +15,7 @@ import { Zap } from 'lucide-react';
 
 import { deleteJournalEntries } from '@/lib/journalEngine';
 import { isPeriodLocked, PERIOD_LOCKED_ERROR } from '@/lib/accountingValidation';
+import { fuzzyMatchAccount } from '@/lib/smartImportEngine';
 
 const STATUS_TABS = ['Semua', 'Inbox', 'Divalidasi', 'Final', 'Void'];
 const TYPE_FILTERS = ['Semua', 'Pemasukan', 'Pengeluaran', 'Transfer'];
@@ -179,19 +180,35 @@ export default function Transaksi() {
                 isOpen={showImport} 
                 onClose={() => setShowImport(false)} 
                 onComplete={async (data) => {
-                    // Cek locking untuk setiap transaksi import
-                    for (const tx of data) {
-                        const locked = await isPeriodLocked(tx.date, activeBusiness.id);
-                        if (locked) {
-                            alert(`Gagal Import: Transaksi tanggal ${tx.date} berada di periode yang sudah ditutup.`);
-                            continue;
+                    try {
+                        const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id });
+                        
+                        // Cek locking untuk setiap transaksi import
+                        for (const tx of data) {
+                            const locked = await isPeriodLocked(tx.date, activeBusiness.id);
+                            if (locked) {
+                                alert(`Gagal Import: Transaksi tanggal ${tx.date} berada di periode yang sudah ditutup.`);
+                                continue;
+                            }
+                            
+                            // Pencocokan fuzzy Herta: Hubungkan kategori saran AI ke ID akun COA yang asli
+                            const matchedAccount = fuzzyMatchAccount(tx.category, accounts);
+                            
+                            await GoogleGenerativeAI.entities.Transaction.create({
+                                ...tx,
+                                business_id: activeBusiness.id,
+                                status: 'Inbox',
+                                source: 'Smart Import',
+                                account_id: matchedAccount?.id || '',
+                                account_name: matchedAccount?.name || tx.category || '',
+                                type: matchedAccount && matchedAccount.type === 'Beban' ? 'Pengeluaran' : (matchedAccount && matchedAccount.type === 'Pendapatan' ? 'Pemasukan' : (tx.type || 'Pengeluaran')),
+                                ai_suggested_category: tx.category,
+                                ai_confidence: tx.confidence || 85
+                            });
                         }
-                        await GoogleGenerativeAI.entities.Transaction.create({
-                            ...tx,
-                            business_id: activeBusiness.id,
-                            status: 'Inbox',
-                            source: 'Smart Import'
-                        });
+                    } catch (importErr) {
+                        console.error('Import failed:', importErr);
+                        alert('Gagal menyimpan beberapa transaksi impor.');
                     }
                     queryClient.invalidateQueries({ queryKey: ['transactions', activeBusiness?.id] });
                 }}

@@ -104,6 +104,7 @@ export const GoogleGenerativeAI = {
       console.warn('[GoogleGenerativeAI.generate] Backend proxy gagal dihubungi. Mencoba memanggil Gemini API secara langsung dari browser sebagai cadangan...', error);
       
       const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
       if (!apiKey) {
         throw new Error('Backend tidak dapat dihubungi dan tidak ada VITE_GEMINI_API_KEY di frontend sebagai cadangan.');

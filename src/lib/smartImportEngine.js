@@ -111,6 +111,128 @@ const parseIndonesianNumber = (str) => {
     return parseFloat(cleaned) || 0;
 };
 
+// FUZZY MATCH ACCOUNT
+// Memadukan saran AI yang tidak persis dengan Chart of Accounts (COA) riil di database.
+// Pendekatan cerdas ala Herta yang tahan banting terhadap perbedaan huruf besar/kecil, typo tipis,
+// dan singkatan atau sub-bagian kata (misal: "Beban Listrik" -> "Beban Listrik & Air").
+export const fuzzyMatchAccount = (suggestedName, accounts) => {
+    if (!suggestedName || !Array.isArray(accounts) || accounts.length === 0) return null;
+
+    // Standarisasi daftar akun menjadi array of objects
+    const normalizedAccounts = accounts.map(acc => {
+        if (typeof acc === 'string') {
+            return { id: '', name: acc, type: '' };
+        }
+        return acc;
+    });
+
+    const cleanString = (str) => {
+        return String(str)
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, '')
+            .replace(/\b(beban|biaya|pendapatan|akun|coa)\b/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
+
+    const suggestedClean = cleanString(suggestedName);
+    if (!suggestedClean) return null;
+
+    // 1. Exact Match (Normalized)
+    for (const acc of normalizedAccounts) {
+        if (cleanString(acc.name) === suggestedClean) {
+            return acc;
+        }
+    }
+
+    // 2. Sub-string & Token Match (Misal: "listrik" mencocokkan "Beban Listrik & Air")
+    const suggestedTokens = suggestedClean.split(' ').filter(t => t.length > 1);
+    let bestMatch = null;
+    let maxOverlapScore = 0;
+
+    for (const acc of normalizedAccounts) {
+        const accClean = cleanString(acc.name);
+        const accTokens = accClean.split(' ').filter(t => t.length > 1);
+
+        const overlap = suggestedTokens.filter(token => accTokens.includes(token));
+        const overlapScore = overlap.length;
+
+        if (overlapScore > 0 && overlapScore > maxOverlapScore) {
+            maxOverlapScore = overlapScore;
+            bestMatch = acc;
+        }
+    }
+
+    if (bestMatch) return bestMatch;
+
+    // 3. Levenshtein Distance (Jika ada typo kecil)
+    const getLevenshteinDistance = (a, b) => {
+        const matrix = [];
+        for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+        for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        matrix[i][j - 1] + 1,
+                        matrix[i - 1][j] + 1
+                    );
+                }
+            }
+        }
+        return matrix[b.length][a.length];
+    };
+
+    let minDistance = Infinity;
+    let closestAcc = null;
+
+    for (const acc of normalizedAccounts) {
+        const accClean = cleanString(acc.name);
+        const distance = getLevenshteinDistance(suggestedClean, accClean);
+        
+        const maxAllowedDistance = Math.floor(Math.min(suggestedClean.length, accClean.length) * 0.45);
+        if (distance <= maxAllowedDistance && distance < minDistance) {
+            minDistance = distance;
+            closestAcc = acc;
+        }
+    }
+
+    return closestAcc;
+};
+
+// Fungsi Pembantu Cerdas: Mendeduksi tipe transaksi (Pemasukan vs Pengeluaran) secara akurat
+const deduceType = (description, categoryName, matchedAccount = null, amount = 0) => {
+    // 1. Jika nominal negatif, hampir pasti ini pengeluaran
+    if (amount < 0) return 'Pengeluaran';
+
+    // 2. Jika akun COA teridentifikasi, gunakan tipe dari akun
+    if (matchedAccount && matchedAccount.type) {
+        if (matchedAccount.type === 'Beban') return 'Pengeluaran';
+        if (matchedAccount.type === 'Pendapatan') return 'Pemasukan';
+    }
+
+    // 3. Cek kata kunci pada deskripsi (Akurasi Tinggi)
+    const descLower = String(description || '').toLowerCase();
+    const incomeDescKeywords = ['transfer masuk', 'penjualan', 'omset', 'terima', 'kas masuk', 'setoran', 'revenue', 'income', 'bunga bank', 'piutang lunas', 'pemasukan', 'jasa', 'komisi'];
+    const expenseDescKeywords = ['transfer keluar', 'pembelian', 'bayar', 'beli', 'beban', 'biaya', 'tarik kas', 'pengeluaran', 'gaji', 'bensin', 'parkir', 'admin', 'langganan', 'sewa', 'pajak'];
+
+    if (incomeDescKeywords.some(kw => descLower.includes(kw))) return 'Pemasukan';
+    if (expenseDescKeywords.some(kw => descLower.includes(kw))) return 'Pengeluaran';
+
+    // 4. Fallback ke nama kategori
+    if (categoryName) {
+        const catLower = String(categoryName).toLowerCase();
+        if (incomeDescKeywords.some(kw => catLower.includes(kw))) return 'Pemasukan';
+        if (expenseDescKeywords.some(kw => catLower.includes(kw))) return 'Pengeluaran';
+    }
+
+    return 'Pengeluaran'; // Default
+};
+
 const sanitizeValue = (val) => {
     if (typeof val !== 'string') return val;
     const trimmed = val.trim();
@@ -125,6 +247,11 @@ const sanitizeValue = (val) => {
 };
 
 export const cleanData = async (rows, mapping, coaSuggestions = []) => {
+    // Standardisasi list COA ke array of objects
+    const isObjectCoa = coaSuggestions.length > 0 && typeof coaSuggestions[0] === 'object';
+    const accountsList = isObjectCoa ? coaSuggestions : coaSuggestions.map(name => ({ id: '', name, type: '' }));
+    const accountNames = accountsList.map(a => a.name);
+
     // 1. Bersihkan data dasar dari baris secara sinkronus terlebih dahulu
     const cleanedRows = rows.map((row, index) => {
         const rawDate = row[mapping.date?.index] || '';
@@ -150,17 +277,32 @@ export const cleanData = async (rows, mapping, coaSuggestions = []) => {
         }
 
         const parsedDate = excelSerialToDate(rawDate);
-        const categoryValue = rawCategory ? sanitizeValue(rawCategory) : null;
+        const parsedAmount = parseIndonesianNumber(amountVal);
+        const sanitizedDesc = sanitizeValue(rawDesc);
+        
+        let categoryValue = rawCategory ? sanitizeValue(rawCategory) : null;
+        let isSuggested = false;
+        let matchedAccount = null;
+
+        // Jika kategori sudah di-map dari Excel, coba fuzzy match langsung ke COA riil
+        if (categoryValue) {
+            matchedAccount = fuzzyMatchAccount(categoryValue, accountsList);
+            if (matchedAccount) {
+                categoryValue = matchedAccount.name;
+            }
+        }
+
+        const transactionType = deduceType(sanitizedDesc, categoryValue, matchedAccount, parsedAmount);
 
         return {
             date: parsedDate || new Date().toISOString().split('T')[0],
-            // [CVE-9 Fixed by Herta] — Semua teks yang rentan di-sanitasi ketat
-            description: sanitizeValue(rawDesc),
-            amount: parseIndonesianNumber(amountVal),
+            description: sanitizedDesc,
+            amount: Math.abs(parsedAmount), // Gunakan nilai mutlak positif untuk ledger
             category: categoryValue,
-            type: categoryValue ? deduceTypeFromCategory(categoryValue) : 'Pengeluaran', // Deducing type
+            type: transactionType,
             reference: sanitizeValue(rawRef),
             confidence: categoryValue ? 1.0 : 0,
+            isSuggested: isSuggested,
             suggestions: []
         };
     });
@@ -169,7 +311,7 @@ export const cleanData = async (rows, mapping, coaSuggestions = []) => {
     const rowsNeedingAI = [];
     cleanedRows.forEach((row, idx) => {
         if (!row.category && row.description) {
-            rowsNeedingAI.push({ originalIndex: idx, description: row.description });
+            rowsNeedingAI.push({ originalIndex: idx, description: row.description, amount: row.amount });
         }
     });
 
@@ -178,9 +320,9 @@ export const cleanData = async (rows, mapping, coaSuggestions = []) => {
         const descriptions = rowsNeedingAI.map(r => r.description);
         const prompt = `Kamu adalah Biyo, akuntan senior AI berpengalaman. Tentukan nama kategori akun (COA) akuntansi paling tepat beserta tipe transaksinya untuk masing-masing deskripsi transaksi berikut dalam bahasa Indonesia.
 
-${coaSuggestions && coaSuggestions.length > 0 
+${accountNames.length > 0 
   ? `PILIH KATEGORI HANYA DARI DAFTAR AKUN BISNIS BERIKUT (Pilih nama yang paling relevan dan persis sesuai ejaan):
-${coaSuggestions.join(', ')}` 
+${accountNames.join(', ')}` 
   : 'Gunakan nama kategori COA akuntansi standar Indonesia (seperti Beban Gaji, Beban Operasional, Beban Administrasi Bank, Pendapatan Usaha, Beban Kendaraan, dll).'}
 
 Ketentuan Tipe: 
@@ -222,8 +364,20 @@ ${JSON.stringify(descriptions)}`;
                 rowsNeedingAI.forEach((item, index) => {
                     const suggested = categories[index];
                     if (suggested && suggested.category) {
-                        cleanedRows[item.originalIndex].category = suggested.category;
-                        cleanedRows[item.originalIndex].type = suggested.type || 'Pengeluaran';
+                        let finalCategory = suggested.category;
+                        let finalType = suggested.type || 'Pengeluaran';
+
+                        // Lakukan fuzzy matching Herta pada saran AI agar 100% selaras dengan COA riil
+                        const matchedAccount = fuzzyMatchAccount(finalCategory, accountsList);
+                        if (matchedAccount) {
+                            finalCategory = matchedAccount.name;
+                            finalType = deduceType(cleanedRows[item.originalIndex].description, finalCategory, matchedAccount, item.amount);
+                        } else {
+                            finalType = deduceType(cleanedRows[item.originalIndex].description, finalCategory, null, item.amount);
+                        }
+
+                        cleanedRows[item.originalIndex].category = finalCategory;
+                        cleanedRows[item.originalIndex].type = finalType;
                         cleanedRows[item.originalIndex].confidence = 0.85;
                         cleanedRows[item.originalIndex].isSuggested = true;
                     }

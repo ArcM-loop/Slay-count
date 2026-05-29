@@ -9,6 +9,7 @@ import { Loader2, Upload, Camera, Sparkles, CheckCircle, QrCode, ShieldAlert } f
 import { formatRupiah } from '@/lib/formatters';
 import { Html5Qrcode } from 'html5-qrcode';
 import { validateJournalWithSwarm } from '@/lib/journalEngine';
+import { fuzzyMatchAccount } from '@/lib/smartImportEngine';
 // Tesseract removed — Gemini Vision dipakai langsung (lebih cepat, tidak bisa hang)
 export const EXPERT_PROMPT = (rawText, accountNames) => `
 Kamu adalah Biyo, akuntan senior berpengalaman 15 tahun yang ahli dalam standar akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP. Kamu memahami konteks bisnis UMKM Indonesia secara mendalam.
@@ -89,14 +90,71 @@ export default function ScanNotaModal({ open, onClose }) {
     }
   };
 
-  const handleFile = async (file) => {
-    if (!file || !activeBusiness) return;
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
+  // Fungsi Kompresi Gambar Cerdas Herta (Client-Side Compression)
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) {
+        // Jika PDF atau file lain, bypass kompresi
+        resolve(file);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // Batas maksimal dimensi optimal untuk Gemini OCR (1200px)
+          const MAX_DIM = 1200;
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              resolve(file);
+            }
+          }, 'image/jpeg', 0.85); // Kualitas 85% sangat tajam untuk OCR & hemat bandwidth
+        };
+        img.src = event.target.result;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFile = async (rawFile) => {
+    if (!rawFile || !activeBusiness) return;
     setStep('scanning');
     setError(null);
 
     try {
+      // Kompres gambar terlebih dahulu agar upload 10x lebih cepat & anti-terpotong
+      const file = await compressImage(rawFile);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+
       // 1. Try reading QR code from the image file directly first using html5-qrcode
       const html5QrCode = new Html5Qrcode("hidden-qr-reader");
       try {
@@ -132,28 +190,30 @@ export default function ScanNotaModal({ open, onClose }) {
           const accountNames = (await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id })).map(a => a.name);
 
           const visionPrompt = `Kamu adalah Biyo, akuntan senior ahli akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP.
-Analisis GAMBAR nota/struk/faktur ini secara langsung dan ekstrak.
+Analisis GAMBAR dokumen keuangan/nota/struk/invoice/faktur ini secara langsung dan ekstrak datanya.
 
-PENTING & KRITIS: Jangan berhalusinasi atau mencocokkan dengan template nota imajiner! 
-- Jika gambar yang diberikan bukan berupa nota/struk/faktur belanja riil (misal gambar kosong, gambar pemandangan, dsb), berikan respons JSON berikut secara mutlak: {"error": "Bukan nota belanja yang valid"}
-- Jika gambar adalah nota valid, ekstrak data riil dari teks yang terlihat di gambar tersebut.
+KETENTUAN SANGAT PENTING (ANTI-TEMPLATE-COPYING):
+1. JANGAN PERNAH mengembalikan nilai placeholder seperti kata "string", "number", "YYYY-MM-DD", "nama akun dari daftar tersedia", atau "pilih salah satu..." ke dalam isi JSON.
+2. Jika ada informasi yang TIDAK dapat dibaca atau TIDAK ada di gambar, isi dengan null (misalnya: "merchant_name": null, atau "npwp_lawan": null).
+3. Jika gambar sama sekali tidak berkaitan dengan transaksi keuangan/nota belanja (seperti foto pemandangan, barang random, wajah orang), jawab dengan JSON: {"error": "Gambar bukan merupakan dokumen nota/transaksi yang valid."}
+4. Ekstrak total_amount sebagai angka murni (number), bukan string. Jika tertulis "Rp 150.000", jadikan 150000.
 
 Daftar Akun Tersedia: ${accountNames.join(', ')}
 
 Ekstrak informasi dan jawab dalam format JSON:
 {
-  "total_amount": number,
-  "date": "YYYY-MM-DD",
-  "merchant_name": "string",
+  "total_amount": number_atau_null,
+  "date": "YYYY-MM-DD_atau_null",
+  "merchant_name": "nama_merchant_atau_null",
   "type": "Pemasukan" atau "Pengeluaran",
-  "suggested_category": "nama akun dari daftar tersedia",
+  "suggested_category": "pilih salah satu nama akun paling relevan dari daftar tersedia di atas, atau null jika ragu",
   "confidence": number (0-100),
   "reason": "alasan singkat santai",
   "is_efaktur": boolean,
-  "nomor_faktur": "string atau null",
-  "npwp_lawan": "string atau null",
-  "dpp": number atau null,
-  "ppn": number atau null
+  "nomor_faktur": "string_atau_null",
+  "npwp_lawan": "string_atau_null",
+  "dpp": number_atau_null,
+  "ppn": number_atau_null
 }`;
 
           const llmResult = await GoogleGenerativeAI.generate({
@@ -165,7 +225,6 @@ Ekstrak informasi dan jawab dalam format JSON:
           });
 
           let rawContent = llmResult?.choices?.[0]?.message?.content ?? '{}';
-          // Pembersihan Jenius Herta: Hapus pembungkus markdown JSON jika ada
           if (rawContent.includes('```')) {
             rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
           }
@@ -178,7 +237,19 @@ Ekstrak informasi dan jawab dalam format JSON:
             return;
           }
 
-          // Normalisasi merchant name untuk deteksi duplikat yang lebih pintar
+          // Bersihkan jika model tidak sengaja memulangkan placeholder harfiah
+          if (parsed.merchant_name === 'string' || parsed.merchant_name === 'nama_merchant_atau_null') parsed.merchant_name = null;
+          if (parsed.date === 'YYYY-MM-DD' || parsed.date === 'YYYY-MM-DD_atau_null') parsed.date = null;
+          if (parsed.suggested_category && parsed.suggested_category.includes('pilih salah satu')) parsed.suggested_category = null;
+
+          // Pencocokan fuzzy Herta: Hubungkan kategori saran AI ke ID akun COA yang asli
+          const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id });
+          const matchedAccount = fuzzyMatchAccount(parsed.suggested_category, accounts);
+          if (matchedAccount) {
+            parsed.suggested_category = matchedAccount.name;
+            parsed.type = matchedAccount.type === 'Beban' ? 'Pengeluaran' : (matchedAccount.type === 'Pendapatan' ? 'Pemasukan' : parsed.type);
+          }
+
           const cleanMerchant = (parsed.merchant_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
           const existingTx = await GoogleGenerativeAI.entities.Transaction.filter({
@@ -210,7 +281,7 @@ Ekstrak informasi dan jawab dalam format JSON:
     if (!extracted || !activeBusiness) return;
     setStep('done');
     const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id });
-    const matchedAccount = accounts.find(a => a.name === extracted.suggested_category);
+    const matchedAccount = fuzzyMatchAccount(extracted.suggested_category, accounts);
 
     // Ghost #2 Fix: Selalu simpan sebagai 'Inbox' dulu (aman).
     // Swarm akan memutuskan sendiri apakah layak naik ke 'Final' berdasarkan konsensus 101 agen.

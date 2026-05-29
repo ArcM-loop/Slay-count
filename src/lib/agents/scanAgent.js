@@ -9,17 +9,73 @@
 // Removed Tesseract import – Gemini Vision is used directly in the processing function.
 
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
-import { EXPERT_PROMPT } from '@/components/transactions/ScanNotaModal.jsx'; // reuse existing prompt helper
+import { fuzzyMatchAccount } from '@/lib/smartImportEngine';
 
 export const scanAgent = {
   name: 'scanAgent',
   description: 'OCR + LLM extraction for receipt images',
+  
+  // Fungsi Kompresi Gambar Cerdas Herta (Client-Side Compression)
+  compressImage(file) {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) {
+        resolve(file);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          const MAX_DIM = 1200;
+          if (width > height) {
+            if (width > MAX_DIM) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            }
+          } else {
+            if (height > MAX_DIM) {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              resolve(file);
+            }
+          }, 'image/jpeg', 0.85);
+        };
+        img.src = event.target.result;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
+  },
+
   /**
-   * @param {File} file – image or PDF (PDF is first converted to image elsewhere)
+   * @param {File} rawFile – image or PDF
    * @param {string} businessId – current business identifier for duplicate check
    * @returns {Promise<Object>} parsed transaction data + receipt_url + isDuplicate
    */
-  async process(file, businessId) {
+  async process(rawFile, businessId) {
+      // Kompres gambar agar efisien & stabil saat dikirim lewat API
+      const file = await this.compressImage(rawFile);
+
       // Convert file to base64
       const toBase64 = (f) => new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -31,22 +87,32 @@ export const scanAgent = {
 
       const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: businessId });
       const accountNames = accounts.map(a => a.name);
+      
       const visionPrompt = `Kamu adalah Biyo, akuntan senior ahli akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP.
+Analisis GAMBAR dokumen keuangan/nota/struk/invoice/faktur ini secara langsung dan ekstrak datanya.
+
+KETENTUAN SANGAT PENTING (ANTI-TEMPLATE-COPYING):
+1. JANGAN PERNAH mengembalikan nilai placeholder seperti kata "string", "number", "YYYY-MM-DD", "nama akun dari daftar tersedia", atau "pilih salah satu..." ke dalam isi JSON.
+2. Jika ada informasi yang TIDAK dapat dibaca atau TIDAK ada di gambar, isi dengan null (misalnya: "merchant_name": null, atau "npwp_lawan": null).
+3. Jika gambar sama sekali tidak berkaitan dengan transaksi keuangan/nota belanja (seperti foto pemandangan, barang random, wajah orang), jawab dengan JSON: {"error": "Gambar bukan merupakan dokumen nota/transaksi yang valid."}
+4. Ekstrak total_amount sebagai angka murni (number), bukan string. Jika tertulis "Rp 150.000", jadikan 150000.
+
 Daftar Akun Tersedia: ${accountNames.join(', ')}
+
 Ekstrak informasi dari gambar nota dalam format JSON:
 {
-  "total_amount": number,
-  "date": "YYYY-MM-DD",
-  "merchant_name": "string",
+  "total_amount": number_atau_null,
+  "date": "YYYY-MM-DD_atau_null",
+  "merchant_name": "nama_merchant_atau_null",
   "type": "Pemasukan" atau "Pengeluaran",
-  "suggested_category": "nama akun dari daftar tersedia",
+  "suggested_category": "pilih salah satu nama akun paling relevan dari daftar tersedia di atas, atau null jika ragu",
   "confidence": number (0-100),
   "reason": "alasan singkat santai",
   "is_efaktur": boolean,
-  "nomor_faktur": "string atau null",
-  "npwp_lawan": "string atau null",
-  "dpp": number atau null,
-  "ppn": number atau null
+  "nomor_faktur": "string_atau_null",
+  "npwp_lawan": "string_atau_null",
+  "dpp": number_atau_null,
+  "ppn": number_atau_null
 }`;
 
       const llmResult = await GoogleGenerativeAI.generate({
@@ -57,7 +123,24 @@ Ekstrak informasi dari gambar nota dalam format JSON:
         mimeType: file.type || 'image/jpeg'
       });
 
-      const parsed = JSON.parse(llmResult?.choices?.[0]?.message?.content ?? '{}');
+      let rawContent = llmResult?.choices?.[0]?.message?.content ?? '{}';
+      if (rawContent.includes('```')) {
+        rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+      }
+
+      const parsed = JSON.parse(rawContent);
+
+      // Bersihkan jika model tidak sengaja memulangkan placeholder harfiah
+      if (parsed.merchant_name === 'string' || parsed.merchant_name === 'nama_merchant_atau_null') parsed.merchant_name = null;
+      if (parsed.date === 'YYYY-MM-DD' || parsed.date === 'YYYY-MM-DD_atau_null') parsed.date = null;
+      if (parsed.suggested_category && parsed.suggested_category.includes('pilih salah satu')) parsed.suggested_category = null;
+
+      // Pencocokan fuzzy Herta: Hubungkan kategori saran AI ke ID akun COA yang asli
+      const matchedAccount = fuzzyMatchAccount(parsed.suggested_category, accounts);
+      if (matchedAccount) {
+        parsed.suggested_category = matchedAccount.name;
+        parsed.type = matchedAccount.type === 'Beban' ? 'Pengeluaran' : (matchedAccount.type === 'Pendapatan' ? 'Pemasukan' : parsed.type);
+      }
 
       // Duplicate detection
       const duplicates = await GoogleGenerativeAI.entities.Transaction.filter({
