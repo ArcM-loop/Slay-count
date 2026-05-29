@@ -72,8 +72,10 @@ router.post('/generate', requireAuth, aiLimiter, async (req, res) => {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const apiKey = getNextKey();
 
+    const modelName = MODEL;
+
     try {
-      const url = `${GEMINI_API_BASE}/${MODEL}:generateContent?key=${apiKey}`;
+      const url = `${GEMINI_API_BASE}/${modelName}:generateContent?key=${apiKey}`;
 
       const parts = [{ text: prompt }];
       if (req.body.image && req.body.mimeType) {
@@ -101,11 +103,22 @@ router.post('/generate', requireAuth, aiLimiter, async (req, res) => {
         ]
       };
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
+
+      // Failover Dinamis Herta: Jika model yang direquest (misal gemini-3-flash) belum didukung/404, fallback ke gemini-2.0-flash
+      if (!response.ok && (response.status === 404 || response.status === 400)) {
+        console.warn(`[Proxy AI] Model ${modelName} tidak didukung atau 404/400. Melakukan failover dinamis ke gemini-2.0-flash...`);
+        const fallbackUrl = `${GEMINI_API_BASE}/gemini-2.0-flash:generateContent?key=${apiKey}`;
+        response = await fetch(fallbackUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+      }
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));

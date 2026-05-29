@@ -72,6 +72,45 @@ const deduceTypeFromCategory = (categoryName) => {
     return 'Pengeluaran'; // Beban, biaya, HPP, aset dll secara default masuk ke Pengeluaran
 };
 
+// Parser Angka Cerdas untuk format Indonesia (titik ribuan, koma desimal) & Internasional
+const parseIndonesianNumber = (str) => {
+    if (str === undefined || str === null) return 0;
+    let cleaned = String(str).trim();
+    if (!cleaned) return 0;
+    
+    // Hapus simbol mata uang jika ada
+    cleaned = cleaned.replace(/^(Rp|USD|EUR)\.?\s*/i, '');
+    
+    // Kasus 1: Memiliki titik ribuan DAN koma desimal sekaligus (misal 1.250.000,50)
+    if (cleaned.includes('.') && cleaned.includes(',')) {
+        cleaned = cleaned.replace(/\./g, '').replace(/,/g, '.');
+    } 
+    // Kasus 2: Hanya memiliki koma (misal 8,5 atau 15,000)
+    else if (cleaned.includes(',')) {
+        const parts = cleaned.split(',');
+        // Jika angka setelah koma berjumlah 3 digit, asumsikan itu pemisah ribuan (15,000)
+        const isThousand = parts.slice(1).every(part => part.length === 3);
+        if (isThousand) {
+            cleaned = cleaned.replace(/,/g, '');
+        } else {
+            // Sebaliknya, itu desimal koma lokal (8,5 atau 2,01)
+            cleaned = cleaned.replace(/,/g, '.');
+        }
+    } 
+    // Kasus 3: Hanya memiliki titik (misal 750.000 atau 15.000 atau 8.5)
+    else if (cleaned.includes('.')) {
+        const parts = cleaned.split('.');
+        // Jika bagian setelah titik berjumlah 3 digit, asumsikan itu pemisah ribuan lokal (750.000)
+        const isThousand = parts.slice(1).every(part => part.length === 3);
+        if (isThousand) {
+            cleaned = cleaned.replace(/\./g, '');
+        }
+        // Sebaliknya, asumsikan desimal standar internasional (8.5), biarkan titiknya tetap
+    }
+    
+    return parseFloat(cleaned) || 0;
+};
+
 const sanitizeValue = (val) => {
     if (typeof val !== 'string') return val;
     const trimmed = val.trim();
@@ -95,12 +134,12 @@ export const cleanData = async (rows, mapping, coaSuggestions = []) => {
 
         let amountVal = row[mapping.amount?.index];
         // Skenario 2 Kolom (Debet / Kredit): Jika kosong, nol, atau '-', cari kolom angka lainnya di baris yang sama!
-        if (!amountVal || String(amountVal).trim() === '-' || String(amountVal).trim() === '' || parseFloat(String(amountVal).replace(/[^0-9.-]+/g, "")) === 0) {
+        if (!amountVal || String(amountVal).trim() === '-' || String(amountVal).trim() === '' || parseIndonesianNumber(amountVal) === 0) {
             for (let i = 0; i < row.length; i++) {
                 if (i !== mapping.date?.index && i !== mapping.description?.index && i !== mapping.reference?.index && i !== mapping.category?.index) {
                     const candidate = String(row[i]).trim();
                     if (candidate && candidate !== '-' && /[0-9]/.test(candidate)) {
-                        const parsedCand = parseFloat(candidate.replace(/[^0-9.-]+/g, ""));
+                        const parsedCand = parseIndonesianNumber(candidate);
                         if (parsedCand > 0) {
                             amountVal = candidate;
                             break;
@@ -117,7 +156,7 @@ export const cleanData = async (rows, mapping, coaSuggestions = []) => {
             date: parsedDate || new Date().toISOString().split('T')[0],
             // [CVE-9 Fixed by Herta] — Semua teks yang rentan di-sanitasi ketat
             description: sanitizeValue(rawDesc),
-            amount: parseFloat(String(amountVal || 0).replace(/[^0-9.-]+/g, "")) || 0,
+            amount: parseIndonesianNumber(amountVal),
             category: categoryValue,
             type: categoryValue ? deduceTypeFromCategory(categoryValue) : 'Pengeluaran', // Deducing type
             reference: sanitizeValue(rawRef),
@@ -138,9 +177,15 @@ export const cleanData = async (rows, mapping, coaSuggestions = []) => {
     if (rowsNeedingAI.length > 0) {
         const descriptions = rowsNeedingAI.map(r => r.description);
         const prompt = `Kamu adalah Biyo, akuntan senior AI berpengalaman. Tentukan nama kategori akun (COA) akuntansi paling tepat beserta tipe transaksinya untuk masing-masing deskripsi transaksi berikut dalam bahasa Indonesia.
+
+${coaSuggestions && coaSuggestions.length > 0 
+  ? `PILIH KATEGORI HANYA DARI DAFTAR AKUN BISNIS BERIKUT (Pilih nama yang paling relevan dan persis sesuai ejaan):
+${coaSuggestions.join(', ')}` 
+  : 'Gunakan nama kategori COA akuntansi standar Indonesia (seperti Beban Gaji, Beban Operasional, Beban Administrasi Bank, Pendapatan Usaha, Beban Kendaraan, dll).'}
+
 Ketentuan Tipe: 
-- "Pengeluaran" untuk beban, biaya, pembelian barang, parkir, bensin, gaji, air, listrik, dll.
-- "Pemasukan" untuk penjualan, pendapatan, penerimaan kas, piutang lunas, dll.
+- "Pengeluaran" untuk beban, biaya, pembelian barang, parkir, bensin, gaji, air, listrik, biaya admin, dll.
+- "Pemasukan" untuk penjualan, pendapatan, penerimaan kas, piutang lunas, transfer masuk, dll.
 
 Kembalikan jawaban dalam format JSON ARRAY berisi objek dengan format: {"category": "Nama Kategori", "type": "Pemasukan"|"Pengeluaran"}, berurutan sesuai urutan deskripsi yang diberikan. Jangan memberikan teks penjelasan tambahan apapun, hanya JSON array.
 

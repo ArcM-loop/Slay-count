@@ -101,8 +101,82 @@ export const GoogleGenerativeAI = {
         ]
       };
     } catch (error) {
-      console.error('[GoogleGenerativeAI.generate] Error:', error);
-      throw error;
+      console.warn('[GoogleGenerativeAI.generate] Backend proxy gagal dihubungi. Mencoba memanggil Gemini API secara langsung dari browser sebagai cadangan...', error);
+      
+      const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+      
+      if (!apiKey) {
+        throw new Error('Backend tidak dapat dihubungi dan tidak ada VITE_GEMINI_API_KEY di frontend sebagai cadangan.');
+      }
+      
+      try {
+        const directUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+        
+        const parts = [{ text: prompt }];
+        if (image && mimeType) {
+          parts.push({
+            inlineData: {
+              mimeType,
+              data: image
+            }
+          });
+        }
+        
+        let directResponse = await fetch(directUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: {
+              temperature,
+              maxOutputTokens: maxTokens,
+              ...(jsonMode && { responseMimeType: 'application/json' }),
+              ...(stopSequences && { stopSequences })
+            }
+          })
+        });
+        
+        // Pemetaan Cerdas Fallback Dinamis Herta: Jika model pilihan (seperti gemini-3-flash) tidak didukung atau 404/400,
+        // lakukan retry otomatis menggunakan gemini-2.0-flash sebagai cadangan.
+        if (!directResponse.ok && (directResponse.status === 404 || directResponse.status === 400)) {
+          console.warn(`[GoogleGenerativeAI] Model ${modelName} tidak didukung atau 404/400. Melakukan failover dinamis ke gemini-2.0-flash...`);
+          const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+          directResponse = await fetch(fallbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts }],
+              generationConfig: {
+                temperature,
+                maxOutputTokens: maxTokens,
+                ...(jsonMode && { responseMimeType: 'application/json' }),
+                ...(stopSequences && { stopSequences })
+              }
+            })
+          });
+        }
+        
+        if (!directResponse.ok) {
+          const errData = await directResponse.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `Gemini Direct API Error: ${directResponse.status}`);
+        }
+        
+        const directData = await directResponse.json();
+        const text = directData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        
+        return {
+          choices: [
+            {
+              message: {
+                content: text
+              }
+            }
+          ]
+        };
+      } catch (directError) {
+        console.error('[GoogleGenerativeAI.generate] Pemanggilan langsung gagal juga:', directError);
+        throw new Error(`Gagal memanggil AI: ${error.message} (Fallback juga gagal: ${directError.message})`);
+      }
     }
   },
 

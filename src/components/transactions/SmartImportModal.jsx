@@ -34,8 +34,11 @@ import {
 import { analyzeColumns, cleanData } from '@/lib/smartImportEngine';
 import { motion, AnimatePresence } from 'framer-motion';
 import { visualizerStore } from '@/lib/swarm/visualizerStore';
+import { useBusiness } from '@/lib/BusinessContext';
+import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 
 const SmartImportModal = ({ isOpen, onClose, onComplete }) => {
+    const { activeBusiness } = useBusiness();
     const [step, setStep] = useState(1); // 1: Upload, 2: Mapping, 3: Review
     const [fileData, setFileData] = useState({ headers: [], rows: [], fileName: '' });
     const [mapping, setMapping] = useState({});
@@ -90,14 +93,12 @@ const SmartImportModal = ({ isOpen, onClose, onComplete }) => {
 
     const handleStartReview = async () => {
         visualizerStore.startAction('AuditAgent', 'Membersihkan dan menstandarisasi format data...');
-        // Gunakan Engine untuk bersihkan data berdasarkan mapping user
         try {
-            const result = await cleanData(fileData.rows, mapping, [
-                { name: 'Beban Operasional', keywords: ['listrik', 'air', 'internet', 'telkom'] },
-                { name: 'Beban Kendaraan', keywords: ['bensin', 'parkir', 'service', 'pertamina'] },
-                { name: 'Beban Gaji', keywords: ['gaji', 'bonus', 'thr'] },
-                { name: 'Pendapatan Usaha', keywords: ['penjualan', 'invoice', 'lunas'] },
-            ]);
+            // Tarik daftar akun riil dari Firestore untuk memandu Biyo AI menentukan kategori
+            const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id });
+            const accountNames = accounts.map(a => a.name);
+
+            const result = await cleanData(fileData.rows, mapping, accountNames);
             setCleanedData(result);
             setStep(3);
             visualizerStore.endAction('Data berhasil dibersihkan.', 2000);
