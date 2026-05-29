@@ -7,6 +7,7 @@
 import { SwarmOrchestrator } from './swarm/orchestrator';
 import { db, auth } from '../API/GoogleGenerativeAI';
 import { collection, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { commitJournalToServer } from './secureApiClient';
 
 // 1. CORE & ROOT AGENTS
 import { LedgerAgent } from './swarm/agents/ledgerAgent';
@@ -249,23 +250,15 @@ export async function validateJournalWithSwarm(journalEntry, context = {}) {
  * @param {string} paymentAccountId - ID akun kas/bank
  */
 export async function createJournalEntries(tx, accounts, paymentAccountId) {
-  console.log('[JournalEngine] Creating Compound Journal Entries (ACID)...');
-  
-  const batch = writeBatch(db);
-  const user = auth.currentUser;
-  
-  if (!user) throw new Error('User not authenticated for journaling');
+  console.log('[JournalEngine] Delegating Journal Creation to secure Backend API...');
 
-  const journalRef = collection(db, 'journal_entries');
-  const txRef = doc(db, 'transactions', tx.id);
+  const account = accounts.find(a => a.id === tx.account_id);
+  const paymentAccount = accounts.find(a => a.id === paymentAccountId);
 
   const dpp = parseFloat(tx.dpp || tx.amount || 0);
   const ppnAmount = parseFloat(tx.ppn || 0);
   const pphAmount = parseFloat(tx.pph_amount || 0);
-  const totalKas = dpp + ppnAmount - pphAmount; // Uang yang benar-benar keluar/masuk kas
-
-  const account = accounts.find(a => a.id === tx.account_id);
-  const paymentAccount = accounts.find(a => a.id === paymentAccountId);
+  const totalKas = dpp + ppnAmount - pphAmount;
 
   // Helper: Cari atau buat referensi akun pajak
   const findTaxAccount = (keywords, fallbackName, fallbackCode, fallbackType) => {
@@ -277,78 +270,137 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
   const ppnKeluaranAcc = findTaxAccount(['ppn keluaran', 'pajak keluaran', 'vat output'], 'PPN Keluaran', '2-1700', 'Kewajiban');
   const hutangPPhAcc = findTaxAccount(['hutang pph', 'pph terutang'], `Hutang PPh ${tx.pph_type || ''}`, '2-1800', 'Kewajiban');
 
-  const baseEntry = {
-    transaction_id: tx.id,
-    business_id: tx.business_id,
-    user_id: user.uid,
-    date: tx.date,
-    description: tx.description || tx.merchant_name || 'Journal Entry',
-    created_at: serverTimestamp()
-  };
+  const debitEntries = [];
+  const creditEntries = [];
 
-  const entries = [];
+  const txDesc = tx.description || tx.merchant_name || 'Journal Entry';
 
   if (tx.type === 'Pengeluaran') {
-    // === PENGELUARAN (Compound) ===
     // Dr. Beban .............. DPP
+    debitEntries.push({
+      account_id: tx.account_id,
+      account_code: account?.code || '',
+      account_name: account?.name || 'Beban',
+      debit: dpp,
+      credit: 0,
+      description: txDesc
+    });
+
     // Dr. PPN Masukan ........ PPN (jika ada)
-    // Cr. Hutang PPh ......... PPh (jika ada)
-    // Cr. Kas/Bank ........... Total Kas Keluar
-
-    entries.push({ ...baseEntry, account_id: tx.account_id, account_code: account?.code, account_name: account?.name || 'Beban', account_type: account?.type || 'Beban', debit: dpp, credit: 0 });
-
     if (ppnAmount > 0) {
-      entries.push({ ...baseEntry, account_id: ppnMasukanAcc.id, account_code: ppnMasukanAcc.code, account_name: ppnMasukanAcc.name, account_type: ppnMasukanAcc.type, debit: ppnAmount, credit: 0, description: `PPN Masukan - ${tx.description || ''}` });
+      debitEntries.push({
+        account_id: ppnMasukanAcc.id,
+        account_code: ppnMasukanAcc.code || '',
+        account_name: ppnMasukanAcc.name,
+        debit: ppnAmount,
+        credit: 0,
+        description: `PPN Masukan - ${txDesc}`
+      });
     }
 
+    // Cr. Hutang PPh ......... PPh (jika ada)
     if (pphAmount > 0) {
-      entries.push({ ...baseEntry, account_id: hutangPPhAcc.id, account_code: hutangPPhAcc.code, account_name: hutangPPhAcc.name, account_type: hutangPPhAcc.type, debit: 0, credit: pphAmount, description: `PPh ${tx.pph_type || ''} Dipotong - ${tx.description || ''}` });
+      creditEntries.push({
+        account_id: hutangPPhAcc.id,
+        account_code: hutangPPhAcc.code || '',
+        account_name: hutangPPhAcc.name,
+        debit: 0,
+        credit: pphAmount,
+        description: `PPh ${tx.pph_type || ''} Dipotong - ${txDesc}`
+      });
     }
 
-    entries.push({ ...baseEntry, account_id: paymentAccountId, account_code: paymentAccount?.code, account_name: paymentAccount?.name || 'Kas/Bank', account_type: paymentAccount?.type || 'Aset', debit: 0, credit: totalKas });
+    // Cr. Kas/Bank ........... Total Kas Keluar
+    creditEntries.push({
+      account_id: paymentAccountId,
+      account_code: paymentAccount?.code || '',
+      account_name: paymentAccount?.name || 'Kas/Bank',
+      debit: 0,
+      credit: totalKas,
+      description: txDesc
+    });
 
   } else {
-    // === PEMASUKAN (Compound) ===
     // Dr. Kas/Bank ........... Total Kas Masuk
+    debitEntries.push({
+      account_id: paymentAccountId,
+      account_code: paymentAccount?.code || '',
+      account_name: paymentAccount?.name || 'Kas/Bank',
+      debit: totalKas,
+      credit: 0,
+      description: txDesc
+    });
+
     // Dr. Hutang PPh ......... PPh Dipotong Pihak Lain (jika ada)
-    // Cr. Pendapatan ......... DPP
-    // Cr. PPN Keluaran ....... PPN (jika ada)
-
-    entries.push({ ...baseEntry, account_id: paymentAccountId, account_code: paymentAccount?.code, account_name: paymentAccount?.name || 'Kas/Bank', account_type: paymentAccount?.type || 'Aset', debit: totalKas, credit: 0 });
-
     if (pphAmount > 0) {
-      entries.push({ ...baseEntry, account_id: hutangPPhAcc.id, account_code: hutangPPhAcc.code, account_name: hutangPPhAcc.name, account_type: hutangPPhAcc.type, debit: pphAmount, credit: 0, description: `PPh ${tx.pph_type || ''} Dipungut - ${tx.description || ''}` });
+      debitEntries.push({
+        account_id: hutangPPhAcc.id,
+        account_code: hutangPPhAcc.code || '',
+        account_name: hutangPPhAcc.name,
+        debit: pphAmount,
+        credit: 0,
+        description: `PPh ${tx.pph_type || ''} Dipungut - ${txDesc}`
+      });
     }
 
-    entries.push({ ...baseEntry, account_id: tx.account_id, account_code: account?.code, account_name: account?.name || 'Pendapatan', account_type: account?.type || 'Pendapatan', debit: 0, credit: dpp });
+    // Cr. Pendapatan ......... DPP
+    creditEntries.push({
+      account_id: tx.account_id,
+      account_code: account?.code || '',
+      account_name: account?.name || 'Pendapatan',
+      debit: 0,
+      credit: dpp,
+      description: txDesc
+    });
 
+    // Cr. PPN Keluaran ....... PPN (jika ada)
     if (ppnAmount > 0) {
-      entries.push({ ...baseEntry, account_id: ppnKeluaranAcc.id, account_code: ppnKeluaranAcc.code, account_name: ppnKeluaranAcc.name, account_type: ppnKeluaranAcc.type, debit: 0, credit: ppnAmount, description: `PPN Keluaran - ${tx.description || ''}` });
+      creditEntries.push({
+        account_id: ppnKeluaranAcc.id,
+        account_code: ppnKeluaranAcc.code || '',
+        account_name: ppnKeluaranAcc.name,
+        debit: 0,
+        credit: ppnAmount,
+        description: `PPN Keluaran - ${txDesc}`
+      });
     }
   }
 
-  // Masukkan semua entri ke Batch secara ATOMIK
-  entries.forEach(entry => {
-    const entryDocRef = doc(journalRef);
-    batch.set(entryDocRef, entry);
-  });
-
-  // Update status transaksi asli
-  batch.update(txRef, {
-    status: 'Final',
-    journal_id: tx.id,
-    account_id: tx.account_id,
-    account_name: account?.name || ''
-  });
-
-  // EKSEKUSI ATOMIK
+  // Panggil secure API commit ke server!
   try {
-    await batch.commit();
-    console.log(`[JournalEngine] Compound Journal Committed: ${entries.length} entries ✅`);
-    return true;
+    const result = await commitJournalToServer(
+      {
+        id: tx.id,
+        business_id: tx.business_id,
+        date: tx.date,
+        description: txDesc,
+        amount: tx.amount,
+        category: tx.account_name || account?.name || ''
+      },
+      debitEntries,
+      creditEntries,
+      { requestAdvisory: true }
+    );
+
+    if (result && result.success) {
+      console.log(`[JournalEngine] Server-side Journal Committed securely via API Gateway! ✅`, result.journalIds);
+      
+      // Update status & journal_id transaksi di client Firestore secara terpisah (aman)
+      const { GoogleGenerativeAI: apiG } = await import('@/API/GoogleGenerativeAI');
+      await apiG.entities.Transaction.update(tx.id, {
+        status: 'Final',
+        journal_id: result.journalIds[0] || tx.id,
+        account_id: tx.account_id,
+        account_name: account?.name || ''
+      });
+      
+      return true;
+    } else {
+      throw new Error(result?.error || 'Unknown API commit error');
+    }
   } catch (error) {
-    console.error('[JournalEngine] Atomic Transaction Failed ❌:', error);
-    throw new Error(`Data Integrity Error: Gagal mencatat jurnal secara aman. (${error.message})`);
+    console.error('[JournalEngine] Backend Journal Commit Failed ❌:', error);
+    throw new Error(`Data Integrity Error: Gagal mencatat jurnal secara aman via Server. (${error.message})`);
   }
 }
 
@@ -360,16 +412,24 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
 export async function deleteJournalEntries(transactionId) {
   if (!transactionId) return;
 
-  const { query, where, getDocs, deleteDoc } = await import('firebase/firestore');
+  const { query, where, getDocs, collection } = await import('firebase/firestore');
   const journalRef = collection(db, 'journal_entries');
   const q = query(journalRef, where('transaction_id', '==', transactionId));
 
   try {
     const snapshot = await getDocs(q);
-    const deleteBatch = writeBatch(db);
-    snapshot.forEach(docSnap => deleteBatch.delete(docSnap.ref));
-    await deleteBatch.commit();
-    console.log(`[JournalEngine] Deleted ${snapshot.size} journal entries for tx: ${transactionId} ✅`);
+    if (snapshot.empty) {
+      console.log(`[JournalEngine] No journal entries found to delete for tx: ${transactionId}`);
+      return;
+    }
+
+    const journalIds = snapshot.docs.map(docSnap => docSnap.id);
+    const firstDocData = snapshot.docs[0].data();
+    const businessId = firstDocData.business_id || '';
+
+    const { deleteJournalsOnServer } = await import('./secureApiClient');
+    await deleteJournalsOnServer(journalIds, transactionId, businessId, 'User requested transaction reversal/edit');
+    console.log(`[JournalEngine] Server-side deleted ${snapshot.size} journal entries for tx: ${transactionId} ✅`);
   } catch (error) {
     console.error('[JournalEngine] Failed to delete journal entries:', error);
     throw new Error(`Gagal menghapus jurnal: ${error.message}`);
