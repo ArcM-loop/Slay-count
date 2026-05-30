@@ -6,11 +6,12 @@ import { useBusiness } from '@/lib/BusinessContext';
 import { formatRupiah, formatDate, getTypeEmoji } from '@/lib/formatters';
 import { createJournalEntries, validateJournalWithSwarm } from '@/lib/journalEngine';
 import { logAudit, AUDIT_ACTIONS } from '@/lib/auditTrail';
+import { fuzzyMatchAccount } from '@/lib/smartImportEngine';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, CheckCircle, X, Bot, Zap, ShieldAlert, RefreshCw, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle, X, Bot, Zap, ShieldAlert, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
 import ParticleExplosion from '@/components/hud/ParticleExplosion';
 import HudTypewriter from '@/components/hud/HudTypewriter';
 import { toast } from 'sonner';
@@ -244,6 +245,8 @@ export default function Validasi() {
 function ValidationCard({ tx, accounts, duplicates = new Set(), onFinalize, onReject, delay }) {
     const [accountId, setAccountId] = useState(tx.account_id || '');
     const [paymentAccountId, setPaymentAccountId] = useState('');
+    const [hasManuallySelectedAccount, setHasManuallySelectedAccount] = useState(false);
+    const [hasManuallySelectedPayment, setHasManuallySelectedPayment] = useState(false);
     const [showAIChip, setShowAIChip] = useState(!!tx.ai_suggested_category);
     const [saving, setSaving] = useState(false);
     const [exploding, setExploding] = useState(false);
@@ -259,14 +262,93 @@ function ValidationCard({ tx, accounts, duplicates = new Set(), onFinalize, onRe
     // Akun pembayaran: selalu Aset (Kas/Bank)
     const paymentAccounts = accounts.filter(a => a.type === 'Aset');
 
+    // Auto-select when accounts load or tx changes
+    useEffect(() => {
+        if (accounts.length > 0) {
+            const filteredTxAccounts = accounts.filter(a => {
+                if (tx.type === 'Pemasukan') return a.type === 'Pendapatan';
+                if (tx.type === 'Pengeluaran') return a.type === 'Beban';
+                return true;
+            });
+            const filteredPaymentAccounts = accounts.filter(a => a.type === 'Aset');
+
+            setAccountId(prev => {
+                if (prev) return prev;
+                if (tx.account_id) return tx.account_id;
+                
+                // 1. Try to match tx.ai_suggested_category (Exact match, then fuzzy match)
+                if (tx.ai_suggested_category) {
+                    const found = accounts.find(a => a.name?.toLowerCase() === tx.ai_suggested_category.toLowerCase());
+                    if (found) return found.id;
+                    const fuzzyFound = fuzzyMatchAccount(tx.ai_suggested_category, accounts);
+                    if (fuzzyFound) return fuzzyFound.id;
+                }
+                
+                // 2. Fallback to keyword matching in description/merchant_name
+                const txDesc = (tx.description || tx.merchant_name || '').toLowerCase();
+                const matched = filteredTxAccounts.find(a => txDesc.includes(a.name?.toLowerCase()));
+                if (matched) return matched.id;
+                
+                // 3. Pemasukan fallback: Pendapatan Usaha
+                if (tx.type === 'Pemasukan') {
+                    const pendapatanUsaha = filteredTxAccounts.find(a => a.name?.toLowerCase().includes('pendapatan usaha') || a.code === '4-1001');
+                    if (pendapatanUsaha) return pendapatanUsaha.id;
+                }
+                
+                // 4. Default to first available account
+                if (filteredTxAccounts.length > 0) return filteredTxAccounts[0].id;
+                return '';
+            });
+
+            setPaymentAccountId(prev => {
+                if (prev) return prev;
+                if (tx.payment_account_id) return tx.payment_account_id;
+                
+                const txDesc = (tx.description || tx.merchant_name || '').toLowerCase();
+                
+                // 1. BCA matching
+                if (txDesc.includes('bca')) {
+                    const bca = filteredPaymentAccounts.find(a => a.name?.toLowerCase().includes('bca') || a.code === '1-1002');
+                    if (bca) return bca.id;
+                }
+                // 2. Mandiri matching
+                if (txDesc.includes('mandiri')) {
+                    const mandiri = filteredPaymentAccounts.find(a => a.name?.toLowerCase().includes('mandiri') || a.code === '1-1003');
+                    if (mandiri) return mandiri.id;
+                }
+                
+                // 3. Default to Kas (1-1001)
+                const kas = filteredPaymentAccounts.find(a => a.name?.toLowerCase() === 'kas' || a.code === '1-1001');
+                if (kas) return kas.id;
+                
+                // 4. Default to first asset
+                if (filteredPaymentAccounts.length > 0) return filteredPaymentAccounts[0].id;
+                return '';
+            });
+        }
+    }, [accounts, tx]);
+
     const handleFinalizeClick = async () => {
         if (!accountId || !paymentAccountId) return;
         setSaving(true);
         setExploding(true);
         try {
             await onFinalize(tx, accountId, paymentAccountId);
+            setFinalized(true);
         } catch (err) {
             console.error('[Validasi] Finalisasi gagal:', err);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleRejectClick = async () => {
+        setSaving(true);
+        try {
+            await onReject(tx);
+            setFinalized(true);
+        } catch (err) {
+            console.error('[Validasi] Gagal menghapus:', err);
         } finally {
             setSaving(false);
         }
@@ -286,12 +368,27 @@ function ValidationCard({ tx, accounts, duplicates = new Set(), onFinalize, onRe
 
     const canFinalize = accountId && paymentAccountId;
 
+    // Check if the current selections are AI predictions
+    const isTargetAutoSelected = accountId && !hasManuallySelectedAccount;
+    const isPaymentAutoSelected = paymentAccountId && !hasManuallySelectedPayment;
+
+    if (finalized) {
+        return (
+            <motion.div 
+                initial={{ opacity: 1, scale: 1, height: 'auto' }}
+                animate={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0, padding: 0 }}
+                transition={{ duration: 0.4, ease: 'easeInOut' }}
+                className="overflow-hidden"
+            />
+        );
+    }
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay }}
-            className="bento-card space-y-4 relative"
+            className="bento-card space-y-4 relative overflow-hidden"
         >
             <ParticleExplosion active={exploding} onDone={() => setExploding(false)} />
             {/* Header */}
@@ -379,7 +476,14 @@ function ValidationCard({ tx, accounts, duplicates = new Set(), onFinalize, onRe
                         {tx.ai_reason && !tx.swarm_objections && <p className="text-xs text-muted-foreground mb-3">{tx.ai_reason}</p>}
                         <div className="flex gap-2">
                             <button
-                                onClick={() => { setAccountId(accounts.find(a => a.name === tx.ai_suggested_category)?.id || ''); setShowAIChip(false); }}
+                                onClick={() => { 
+                                    const match = accounts.find(a => a.name?.toLowerCase() === tx.ai_suggested_category?.toLowerCase());
+                                    if (match) {
+                                        setAccountId(match.id);
+                                        setHasManuallySelectedAccount(false);
+                                    }
+                                    setShowAIChip(false); 
+                                }}
                                 className="flex-1 py-1.5 px-3 rounded-lg bg-primary/20 text-primary text-sm font-medium hover:bg-primary/30 transition-colors"
                             >✅ Yep, bener!</button>
                             <button
@@ -411,11 +515,22 @@ function ValidationCard({ tx, accounts, duplicates = new Set(), onFinalize, onRe
             {/* Double-entry fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-secondary/40 border border-border">
                 <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1 block">
+                    <label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-destructive inline-block"></span>
                         {tx.type === 'Pemasukan' ? 'Akun Pendapatan (Kredit)' : 'Akun Beban (Debit)'}
+                        {isTargetAutoSelected && (
+                            <span className="text-[10px] text-cyber-lime bg-cyber-lime/10 px-1.5 py-0.5 rounded border border-cyber-lime/20 flex items-center gap-0.5 animate-pulse font-sans">
+                                <Sparkles className="w-2.5 h-2.5" /> Tebakan AI
+                            </span>
+                        )}
                     </label>
-                    <Select value={accountId} onValueChange={setAccountId}>
+                    <Select 
+                        value={accountId} 
+                        onValueChange={(val) => { 
+                            setAccountId(val); 
+                            setHasManuallySelectedAccount(true); 
+                        }}
+                    >
                         <SelectTrigger className="bg-background border-border text-sm">
                             <SelectValue placeholder="Pilih akun..." />
                         </SelectTrigger>
@@ -429,11 +544,22 @@ function ValidationCard({ tx, accounts, duplicates = new Set(), onFinalize, onRe
                     </Select>
                 </div>
                 <div>
-                    <label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1 block">
+                    <label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-cyber-lime inline-block"></span>
                         {tx.type === 'Pemasukan' ? 'Diterima di (Debit)' : 'Dibayar dari (Kredit)'}
+                        {isPaymentAutoSelected && (
+                            <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 flex items-center gap-0.5 animate-pulse font-sans">
+                                <Bot className="w-2.5 h-2.5" /> Auto-Select
+                            </span>
+                        )}
                     </label>
-                    <Select value={paymentAccountId} onValueChange={setPaymentAccountId}>
+                    <Select 
+                        value={paymentAccountId} 
+                        onValueChange={(val) => { 
+                            setPaymentAccountId(val); 
+                            setHasManuallySelectedPayment(true); 
+                        }}
+                    >
                         <SelectTrigger className="bg-background border-border text-sm">
                             <SelectValue placeholder="Kas / Bank..." />
                         </SelectTrigger>
@@ -480,8 +606,8 @@ function ValidationCard({ tx, accounts, duplicates = new Set(), onFinalize, onRe
 
             {/* Actions */}
             <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => onReject(tx)} className="border-destructive/30 text-destructive hover:bg-destructive/10 gap-1.5">
-                    <X className="w-3.5 h-3.5" /> Hapus
+                <Button variant="outline" size="sm" disabled={saving} onClick={handleRejectClick} className="border-destructive/30 text-destructive hover:bg-destructive/10 gap-1.5">
+                    {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />} Hapus
                 </Button>
                 <motion.button
                     onClick={handleFinalizeClick}

@@ -8,8 +8,8 @@
 
 # 1. Konfigurasi Awal
 PROJECT_ID="accountomation" # ID Proyek Google Cloud Anda
-SERVICE_NAME="slaycount-backend"
-REGION="asia-southeast1" # Sesuai dengan region Cloud SQL Anda
+SERVICE_NAME="slaycount"
+REGION="asia-southeast2" # Sesuai dengan region Cloud SQL Anda
 IMAGE_NAME="gcr.io/$PROJECT_ID/$SERVICE_NAME:latest"
 INSTANCE_CONNECTION="accountomation:asia-southeast1:accountomation-instance"
 

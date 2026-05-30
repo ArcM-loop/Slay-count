@@ -1,0 +1,16 @@
+# Google Cloud Build ignore file to keep uploads ultra-light and fast
+.git/
+.gcloudignore
+.gitattributes
+.gitignore
+
+# Ignore local dependencies
+node_modules/
+backend/node_modules/
+backend/.gcloud-sdk/
+
+# Ignore local build output
+dist/
+build_output.txt
+.firebase/
+dataconnect/.dataconnect/

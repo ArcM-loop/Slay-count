@@ -13,11 +13,11 @@
 import { auth } from '@/API/GoogleGenerativeAI';
 
 const getBackendUrl = () => {
+  if (import.meta.env.PROD) {
+    return window.location.origin;
+  }
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   if (envUrl && envUrl.startsWith('http')) {
-    if (import.meta.env.PROD && (window.location.hostname.includes('slaycount') || window.location.hostname.includes('run.app') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp'))) {
-      return window.location.origin;
-    }
     return envUrl;
   }
   return 'http://localhost:5000';

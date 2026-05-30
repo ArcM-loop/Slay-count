@@ -68,11 +68,11 @@ export const GoogleGenerativeAI = {
 
   generate: async ({ prompt, temperature = 0.2, maxTokens = 1024, jsonMode = true, image = null, mimeType = null, stopSequences = null }) => {
     const getBackendUrl = () => {
+      if (import.meta.env.PROD) {
+        return window.location.origin;
+      }
       const envUrl = import.meta.env.VITE_API_BASE_URL;
       if (envUrl && envUrl.startsWith('http')) {
-        if (import.meta.env.PROD && (window.location.hostname.includes('slaycount') || window.location.hostname.includes('run.app') || window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp'))) {
-          return window.location.origin;
-        }
         return envUrl;
       }
       return 'http://localhost:5000';

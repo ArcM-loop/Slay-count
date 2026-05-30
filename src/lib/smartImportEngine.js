@@ -127,12 +127,14 @@ export const fuzzyMatchAccount = (suggestedName, accounts) => {
     });
 
     const cleanString = (str) => {
-        return String(str)
+        const cleaned = String(str)
             .toLowerCase()
             .replace(/[^a-z0-9\s]/g, '')
             .replace(/\b(beban|biaya|pendapatan|akun|coa)\b/g, '')
             .replace(/\s+/g, ' ')
             .trim();
+        if (cleaned) return cleaned;
+        return String(str).toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
     };
 
     const suggestedClean = cleanString(suggestedName);
@@ -289,6 +291,11 @@ export const cleanData = async (rows, mapping, coaSuggestions = []) => {
             matchedAccount = fuzzyMatchAccount(categoryValue, accountsList);
             if (matchedAccount) {
                 categoryValue = matchedAccount.name;
+            } else {
+                const lowerCat = categoryValue.toLowerCase().trim();
+                if (lowerCat === 'beban' || lowerCat === 'biaya' || lowerCat === 'pengeluaran' || lowerCat === 'pemasukan' || lowerCat === 'pendapatan') {
+                    categoryValue = null; // Biarkan Biyo AI menebak kategori yang spesifik
+                }
             }
         }
 

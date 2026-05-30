@@ -5,43 +5,70 @@
 # Google Cloud Run di sistem Windows.
 
 $PROJECT_ID = "accountomation"
-$SERVICE_NAME = "slaycount-backend"
-$REGION = "asia-southeast1"
-$IMAGE_NAME = "gcr.io/$PROJECT_ID/$SERVICE_NAME:latest"
+$SERVICE_NAME = "slaycount"
+$REGION = "asia-southeast2"
+$IMAGE_NAME = "gcr.io/accountomation/slaycount:latest"
 $INSTANCE_CONNECTION = "accountomation:asia-southeast1:accountomation-instance"
 
 Write-Host "=======================================================" -ForegroundColor Cyan
-Write-Host "🚀 Memulai Deployment SlayCount Backend ke Cloud Run..." -ForegroundColor Cyan
+Write-Host "[LAUNCH] Memulai Deployment SlayCount Backend ke Cloud Run..." -ForegroundColor Cyan
 Write-Host "=======================================================" -ForegroundColor Cyan
 
+# Autodetect portable Google Cloud SDK
+$GCLOUD_BIN = "gcloud"
+$PORTABLE_GCLOUD = Join-Path $PSScriptRoot ".gcloud-sdk\google-cloud-sdk\bin\gcloud.cmd"
+$PORTABLE_PYTHON = Join-Path $PSScriptRoot ".gcloud-sdk\google-cloud-sdk\platform\bundledpython\python.exe"
+
+if (Test-Path $PORTABLE_GCLOUD) {
+    Write-Host "[INFO] Menggunakan SDK Google Cloud Portabel yang ditemukan di: $PORTABLE_GCLOUD" -ForegroundColor Cyan
+    $GCLOUD_BIN = $PORTABLE_GCLOUD
+    if (Test-Path $PORTABLE_PYTHON) {
+        $Env:CLOUDSDK_PYTHON = $PORTABLE_PYTHON
+    }
+} else {
+    if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
+        Write-Error "[ERROR] Google Cloud SDK tidak ditemukan secara global maupun portabel."
+        Write-Error "Harap jalankan skrip instalasi terlebih dahulu: powershell -ExecutionPolicy Bypass -File .\backend\install_gcloud.ps1"
+        exit 1
+    }
+}
+
+# 0. Set Active Account to user's personal Google Account to prevent PERMISSION_DENIED
+Write-Host "[AUTH] Melakukan vibe check pada akun autentikasi..." -ForegroundColor Yellow
+$accounts = & $GCLOUD_BIN config list account --format="value(core.account)"
+if ($accounts -like "*firebase-adminsdk*") {
+    Write-Host "[AUTH] Mendeteksi Service Account terbatas. Mencoba berganti ke akun personal..." -ForegroundColor Cyan
+    & $GCLOUD_BIN config set account marchelihsandy213@gmail.com
+}
+
 # 1. Konfigurasi Proyek GCP
-Write-Host "🎯 Mengatur proyek active GCP ke: $PROJECT_ID..." -ForegroundColor Yellow
-& gcloud config set project $PROJECT_ID
+Write-Host "[SETUP] Mengatur proyek active GCP ke: $PROJECT_ID..." -ForegroundColor Yellow
+& $GCLOUD_BIN config set project $PROJECT_ID
 
 # 2. Build Container Image via Google Cloud Build
-Write-Host "📦 Melakukan build image di Cloud Build..." -ForegroundColor Yellow
-& gcloud builds submit --tag $IMAGE_NAME .
+Write-Host "[BUILD] Melakukan build image di Cloud Build dengan tag: $IMAGE_NAME..." -ForegroundColor Yellow
+& $GCLOUD_BIN builds submit --tag $IMAGE_NAME .
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "❌ Gagal membangun image di Cloud Build. Harap periksa error di atas."
+    Write-Error "[ERROR] Gagal membangun image di Cloud Build. Harap periksa error di atas."
     exit 1
 }
 
-Write-Host "✅ Image berhasil di-build dan disimpan di: $IMAGE_NAME" -ForegroundColor Green
+Write-Host "[SUCCESS] Image berhasil di-build dan disimpan di: $IMAGE_NAME" -ForegroundColor Green
 
 # 3. Ekstrak Environment Variables dari file .env lokal
 $ENV_VARS = ""
 if (Test-Path .env) {
-    Write-Host "📄 Membaca konfigurasi environment dari file .env..." -ForegroundColor Yellow
+    Write-Host "[ENV] Membaca konfigurasi environment dari file .env..." -ForegroundColor Yellow
     $lines = Get-Content .env | Where-Object { $_ -notmatch '^#' -and $_ -match '=' }
     $ENV_VARS = ($lines -join ",")
 }
 
 # 4. Deploy ke Google Cloud Run
-Write-Host "⚡ Mendeploy container image ke Google Cloud Run..." -ForegroundColor Yellow
-Write-Host "🔗 Menyambungkan secara aman ke Cloud SQL Instance: $INSTANCE_CONNECTION..." -ForegroundColor Yellow
+Write-Host "[DEPLOY] Mendeploy container image ke Google Cloud Run..." -ForegroundColor Yellow
+Write-Host "[SQL] Menyambungkan secara aman ke Cloud SQL Instance: $INSTANCE_CONNECTION..." -ForegroundColor Yellow
 
-& gcloud run deploy $SERVICE_NAME `
+& $GCLOUD_BIN run deploy $SERVICE_NAME `
     --image $IMAGE_NAME `
     --platform managed `
     --region $REGION `
@@ -53,9 +80,9 @@ Write-Host "🔗 Menyambungkan secara aman ke Cloud SQL Instance: $INSTANCE_CONN
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "=======================================================" -ForegroundColor Green
-    Write-Host "🎉 SUCCESS: SlayCount Backend telah aktif di Cloud Run!" -ForegroundColor Green
+    Write-Host "[SUCCESS] SlayCount Backend telah aktif di Cloud Run!" -ForegroundColor Green
     Write-Host "=======================================================" -ForegroundColor Green
 } else {
-    Write-Error "❌ Deployment ke Cloud Run gagal."
+    Write-Error "[ERROR] Deployment ke Cloud Run gagal."
     exit 1
 }
