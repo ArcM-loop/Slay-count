@@ -79,9 +79,24 @@ export const GoogleGenerativeAI = {
     };
     const BACKEND_URL = getBackendUrl();
     try {
+      let user = auth.currentUser;
+      if (!user) {
+        // Tunggu maksimal 2 detik untuk memastikan auth selesai memuat sesi
+        user = await Promise.race([
+          GoogleGenerativeAI.auth.waitForAuth(),
+          new Promise(r => setTimeout(() => r(null), 2000))
+        ]);
+      }
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (user) {
+        const token = await user.getIdToken();
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${BACKEND_URL}/api/ai/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           prompt,

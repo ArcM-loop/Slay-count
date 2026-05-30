@@ -11,6 +11,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
+import { verifyFirebaseToken } from '../middleware/verifyFirebaseToken.js';
 
 const router = express.Router();
 
@@ -32,10 +33,22 @@ const aiLimiter = rateLimit({
   message: { error: 'Kuota AI Anda habis untuk jam ini. Silakan coba lagi nanti.' }
 });
 
-// Middleware: Verifikasi JWT dari cookie sebelum panggilan AI diizinkan
-function requireAuth(req, res, next) {
+// Middleware Terpadu Herta: Mendukung Firebase ID Token (Header) dan JWT Cookie (Fallback)
+async function requireAuthOrFirebaseToken(req, res, next) {
+  // 1. Coba Authorization Header (Firebase ID Token) dahulu
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return verifyFirebaseToken(req, res, next);
+  }
+
+  // 2. Fallback ke JWT Cookie
   const token = req.cookies?.slaycount_token;
-  if (!token) return res.status(401).json({ error: 'Sesi tidak ditemukan. Silakan login.' });
+  if (!token) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Sesi tidak ditemukan atau token otorisasi tidak disertakan.'
+    });
+  }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -59,7 +72,7 @@ function getNextKey() {
  * POST /api/ai/generate
  * Endpoint proxy yang aman untuk memanggil Gemini
  */
-router.post('/generate', requireAuth, aiLimiter, async (req, res) => {
+router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res) => {
   const { prompt, purpose = 'worker', temperature = 0.1, jsonMode = true } = req.body;
 
   if (!prompt || typeof prompt !== 'string' || prompt.length > 20000) {

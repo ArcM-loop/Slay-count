@@ -395,5 +395,51 @@ ${JSON.stringify(descriptions)}`;
         }
     }
 
+    // 4. Heuristics Fallback Herta-style: Jika AI gagal atau ada baris yang masih belum ditentukan kategorinya
+    cleanedRows.forEach((row) => {
+        if (!row.category && row.description) {
+            const lowerDesc = row.description.toLowerCase();
+            let suggestedCategory = 'Beban Operasional'; // Default fallback
+
+            if (lowerDesc.includes('gaji') || lowerDesc.includes('salary') || lowerDesc.includes('upah')) {
+                suggestedCategory = 'Beban Gaji';
+            } else if (lowerDesc.includes('pln') || lowerDesc.includes('listrik') || lowerDesc.includes('token') || lowerDesc.includes('pdam') || lowerDesc.includes('air')) {
+                suggestedCategory = 'Beban Listrik & Air';
+            } else if (lowerDesc.includes('admin') || lowerDesc.includes('biaya bulanan') || lowerDesc.includes('administrasi')) {
+                suggestedCategory = 'Beban Administrasi Bank';
+            } else if (lowerDesc.includes('tokopedia') || lowerDesc.includes('shopee') || lowerDesc.includes('laptop') || lowerDesc.includes('meja') || lowerDesc.includes('kursi') || lowerDesc.includes('perlengkapan')) {
+                suggestedCategory = 'Beban Perlengkapan Kantor';
+            } else if (lowerDesc.includes('pajak') || lowerDesc.includes('ppn') || lowerDesc.includes('pph')) {
+                suggestedCategory = 'Beban Pajak';
+            } else if (lowerDesc.includes('bensin') || lowerDesc.includes('pertamax') || lowerDesc.includes('gopay') || lowerDesc.includes('grab') || lowerDesc.includes('gojek') || lowerDesc.includes('transport') || lowerDesc.includes('parkir') || lowerDesc.includes('tol')) {
+                if (accountNames.includes('Beban Kendaraan')) {
+                    suggestedCategory = 'Beban Kendaraan';
+                } else if (accountNames.includes('Beban Transportasi')) {
+                    suggestedCategory = 'Beban Transportasi';
+                } else {
+                    suggestedCategory = 'Beban Operasional';
+                }
+            } else if (lowerDesc.includes('sewa') || lowerDesc.includes('kontrak')) {
+                suggestedCategory = 'Beban Sewa';
+            } else if (lowerDesc.includes('iklan') || lowerDesc.includes('ads') || lowerDesc.includes('marketing') || lowerDesc.includes('promosi')) {
+                suggestedCategory = 'Beban Pemasaran';
+            } else if (lowerDesc.includes('vendor') || lowerDesc.includes('selisih')) {
+                suggestedCategory = 'Beban Operasional';
+            }
+
+            // Lakukan fuzzy matching Herta pada saran lokal agar selaras dengan COA riil
+            const matched = fuzzyMatchAccount(suggestedCategory, accountsList);
+            if (matched) {
+                row.category = matched.name;
+                row.type = deduceType(row.description, matched.name, matched, row.amount);
+            } else {
+                row.category = suggestedCategory;
+                row.type = deduceType(row.description, suggestedCategory, null, row.amount);
+            }
+            row.confidence = 0.65;
+            row.isSuggested = true;
+        }
+    });
+
     return cleanedRows;
 };
