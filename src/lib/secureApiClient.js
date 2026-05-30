@@ -13,6 +13,13 @@
 import { auth } from '@/API/GoogleGenerativeAI';
 
 const getBackendUrl = () => {
+  // 1. Cek jika berjalan di production Firebase Hosting
+  if (typeof window !== 'undefined' && 
+      (window.location.hostname.includes('web.app') || 
+       window.location.hostname.includes('firebaseapp.com'))) {
+    return 'https://slaycount-825422475013.asia-southeast2.run.app';
+  }
+  // 2. Jika di production Cloud Run langsung
   if (import.meta.env.PROD) {
     return window.location.origin;
   }
