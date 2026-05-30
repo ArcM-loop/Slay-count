@@ -24,15 +24,15 @@ import {
 import { getFirestore } from "firebase/firestore";
 
 // Firebase config — client config ini memang harus ada di browser (bukan secret)
-// "accountomation" adalah nama Firebase Project yang benar untuk SlayCount
+// Semua nilai diambil dari .env agar mudah dikonfigurasi per environment
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g", 
-  authDomain: "accountomation.firebaseapp.com",
-  projectId: "accountomation",
-  storageBucket: "accountomation.firebasestorage.app",
-  messagingSenderId: "825422475013",
-  appId: "1:825422475013:web:8cf09b6a53aac97838516c",
-  measurementId: "G-6GR6FE8W90",
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY     || "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g",
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "accountomation.firebaseapp.com",
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID  || "accountomation",
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "accountomation.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "825422475013",
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID      || "1:825422475013:web:8cf09b6a53aac97838516c",
+  measurementId:     import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-6GR6FE8W90",
 };
 
 // ✅ Guard: Hanya inisialisasi jika belum ada Firebase app yang berjalan

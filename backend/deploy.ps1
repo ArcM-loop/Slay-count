@@ -3,6 +3,9 @@
 # ==============================================================================
 # Skrip ini mengotomatiskan proses build Docker via Cloud Build dan mendeploy ke
 # Google Cloud Run di sistem Windows.
+#
+# PENTING: Script ini menggunakan ROOT Dockerfile yang build frontend + backend
+# dalam satu container. Jangan jalankan dari folder backend/ langsung.
 
 $PROJECT_ID = "accountomation"
 $SERVICE_NAME = "slaycount"
@@ -46,8 +49,12 @@ Write-Host "[SETUP] Mengatur proyek active GCP ke: $PROJECT_ID..." -ForegroundCo
 & $GCLOUD_BIN config set project $PROJECT_ID
 
 # 2. Build Container Image via Google Cloud Build
-Write-Host "[BUILD] Melakukan build image di Cloud Build dengan tag: $IMAGE_NAME..." -ForegroundColor Yellow
-& $GCLOUD_BIN builds submit --tag $IMAGE_NAME .
+# KRITIS: Build dari ROOT project directory menggunakan root Dockerfile
+# Root Dockerfile: build frontend Vite dulu -> copy dist ke backend -> satu image
+$ROOT_DIR = (Get-Item (Join-Path $PSScriptRoot "..")).FullName
+Write-Host "[BUILD] Build dari ROOT: $ROOT_DIR (menggunakan root Dockerfile)" -ForegroundColor Yellow
+Write-Host "[BUILD] Tag image: $IMAGE_NAME" -ForegroundColor Yellow
+& $GCLOUD_BIN builds submit --tag $IMAGE_NAME $ROOT_DIR
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "[ERROR] Gagal membangun image di Cloud Build. Harap periksa error di atas."
