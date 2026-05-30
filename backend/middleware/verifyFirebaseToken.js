@@ -31,14 +31,41 @@ export async function verifyFirebaseToken(req, res, next) {
       return next();
     }
 
-    const decoded = await admin.auth().verifyIdToken(idToken);
+    let decoded;
+    try {
+      // 1. Coba verifikasi dengan default app (accountomation)
+      decoded = await admin.auth().verifyIdToken(idToken);
+    } catch (err) {
+      // 2. Jika gagal karena aud/iss mismatch, gunakan verifikator sekunder slaycount-825422475013 secara dinamis
+      const isProjectMismatch = err.message.includes('aud') || 
+                                err.message.includes('audience') || 
+                                err.message.includes('projectId') || 
+                                err.message.includes('project') ||
+                                err.code === 'auth/argument-error';
+                                
+      if (isProjectMismatch) {
+        console.warn('[AuthMiddleware] Token aud/project mismatch. Menggunakan verifikator slaycount-825422475013...');
+        let verifyApp;
+        try {
+          verifyApp = admin.app('tokenVerifier');
+        } catch (e) {
+          verifyApp = admin.initializeApp({
+            projectId: 'slaycount-825422475013'
+          }, 'tokenVerifier');
+        }
+        decoded = await verifyApp.auth().verifyIdToken(idToken);
+      } else {
+        throw err;
+      }
+    }
+
     req.user = { uid: decoded.uid, email: decoded.email };
     next();
   } catch (err) {
     console.error('[AuthMiddleware] Token verification failed:', err.message);
     return res.status(401).json({
       error: 'Unauthorized',
-      message: 'Token tidak valid atau sudah kedaluwarsa. Silakan login ulang.'
+      message: `Token tidak valid atau sudah kedaluwarsa. Detail: ${err.message}`
     });
   }
 }
