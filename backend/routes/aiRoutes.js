@@ -27,7 +27,7 @@ const API_KEYS = [
   process.env.GEMINI_API_KEY_EIGHTH
 ].filter(Boolean);
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Rate Limiter khusus AI — cegah pengguna menghabiskan kuota
@@ -94,7 +94,7 @@ router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res)
     try {
       const url = `${GEMINI_API_BASE}/${modelName}:generateContent?key=${apiKey}`;
 
-      const parts = [{ text: prompt }];
+      const parts = [];
       if (req.body.image && req.body.mimeType) {
         parts.push({
           inlineData: {
@@ -103,6 +103,7 @@ router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res)
           }
         });
       }
+      parts.push({ text: prompt });
 
       const requestBody = {
         contents: [{ parts }],
@@ -126,11 +127,22 @@ router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res)
         body: JSON.stringify(requestBody)
       });
 
-      // Failover Dinamis Herta Tahap 1: Jika model yang direquest (gemini-3.5-flash) belum didukung/404, fallback ke gemini-3-flash-preview
+      // Failover Dinamis Herta Tahap 1: Jika model yang direquest (gemini-3.5-flash) belum didukung/404, fallback ke gemini-3-flash
       if (!response.ok && (response.status === 404 || response.status === 400)) {
-        console.warn(`[Proxy AI] Model ${modelName} tidak didukung atau 404/400. Melakukan failover dinamis ke gemini-3-flash-preview...`);
-        const fallbackUrl = `${GEMINI_API_BASE}/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-        response = await fetch(fallbackUrl, {
+        console.warn(`[Proxy AI] Model ${modelName} tidak didukung atau 404/400. Melakukan failover dinamis ke gemini-3-flash...`);
+        const fallbackUrl1 = `${GEMINI_API_BASE}/gemini-3-flash:generateContent?key=${apiKey}`;
+        response = await fetch(fallbackUrl1, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+      }
+
+      // Failover Dinamis Herta Tahap 1.5: Jika gemini-3-flash gagal, fallback ke gemini-3-flash-preview
+      if (!response.ok && (response.status === 429 || response.status === 404 || response.status === 400)) {
+        console.warn(`[Proxy AI] Model gemini-3-flash gagal. Melakukan failover ke gemini-3-flash-preview...`);
+        const fallbackUrl2 = `${GEMINI_API_BASE}/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+        response = await fetch(fallbackUrl2, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody)
@@ -139,7 +151,7 @@ router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res)
 
       // Failover Dinamis Herta Tahap 2: Jika gemini-3-flash-preview gagal, coba gemini-2.5-flash
       if (!response.ok && (response.status === 429 || response.status === 404 || response.status === 400)) {
-        console.warn(`[Proxy AI] Model ${modelName}/gemini-3-flash-preview gagal dengan status ${response.status}. Melakukan failover ke gemini-2.5-flash...`);
+        console.warn(`[Proxy AI] Model gemini-3-flash-preview gagal. Melakukan failover ke gemini-2.5-flash...`);
         const ultimateUrl = `${GEMINI_API_BASE}/gemini-2.5-flash:generateContent?key=${apiKey}`;
         response = await fetch(ultimateUrl, {
           method: 'POST',
@@ -150,7 +162,7 @@ router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res)
 
       // Failover Dinamis Herta Tahap 3: Jika gemini-2.5-flash juga gagal, coba gemini-1.5-flash sebagai cadangan ultra-stabil akhir
       if (!response.ok && (response.status === 429 || response.status === 404 || response.status === 400)) {
-        console.warn(`[Proxy AI] Model gemini-2.5-flash gagal dengan status ${response.status}. Melakukan failover ke gemini-1.5-flash...`);
+        console.warn(`[Proxy AI] Model gemini-2.5-flash gagal. Melakukan failover ke gemini-1.5-flash...`);
         const legacyUrl = `${GEMINI_API_BASE}/gemini-1.5-flash:generateContent?key=${apiKey}`;
         response = await fetch(legacyUrl, {
           method: 'POST',

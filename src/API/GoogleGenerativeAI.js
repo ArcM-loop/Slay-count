@@ -135,7 +135,7 @@ export const GoogleGenerativeAI = {
     } catch (error) {
       console.warn('[GoogleGenerativeAI.generate] Backend proxy gagal dihubungi. Mencoba memanggil Gemini API secara langsung dari browser sebagai cadangan...', error);
       
-      const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+      const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.5-flash';
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
       if (!apiKey) {
@@ -145,7 +145,7 @@ export const GoogleGenerativeAI = {
       try {
         const directUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
         
-        const parts = [{ text: prompt }];
+        const parts = [];
         if (image && mimeType) {
           parts.push({
             inlineData: {
@@ -154,6 +154,7 @@ export const GoogleGenerativeAI = {
             }
           });
         }
+        parts.push({ text: prompt });
         
         let directResponse = await fetch(directUrl, {
           method: 'POST',
@@ -170,11 +171,30 @@ export const GoogleGenerativeAI = {
         });
         
         // Pemetaan Cerdas Fallback Dinamis Herta Tahap 1: Jika model pilihan (seperti gemini-3.5-flash) tidak didukung atau 404/400,
-        // lakukan retry otomatis menggunakan gemini-3-flash-preview sebagai cadangan.
+        // lakukan retry otomatis menggunakan gemini-3-flash sebagai cadangan.
         if (!directResponse.ok && (directResponse.status === 404 || directResponse.status === 400)) {
-          console.warn(`[GoogleGenerativeAI] Model ${modelName} tidak didukung atau 404/400. Melakukan failover dinamis ke gemini-3-flash-preview...`);
-          const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-          directResponse = await fetch(fallbackUrl, {
+          console.warn(`[GoogleGenerativeAI] Model ${modelName} tidak didukung. Melakukan failover dinamis ke gemini-3-flash...`);
+          const fallbackUrl1 = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${apiKey}`;
+          directResponse = await fetch(fallbackUrl1, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts }],
+              generationConfig: {
+                temperature,
+                maxOutputTokens: maxTokens,
+                ...(jsonMode && { responseMimeType: 'application/json' }),
+                ...(stopSequences && { stopSequences })
+              }
+            })
+          });
+        }
+
+        // Pemetaan Cerdas Fallback Dinamis Herta Tahap 1.5: Jika gemini-3-flash gagal, coba gemini-3-flash-preview
+        if (!directResponse.ok && (directResponse.status === 429 || directResponse.status === 404 || directResponse.status === 400)) {
+          console.warn(`[GoogleGenerativeAI] Model gemini-3-flash gagal. Melakukan failover ke gemini-3-flash-preview...`);
+          const fallbackUrl2 = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+          directResponse = await fetch(fallbackUrl2, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -191,7 +211,7 @@ export const GoogleGenerativeAI = {
         
         // Pemetaan Cerdas Fallback Dinamis Herta Tahap 2: Jika gemini-3-flash-preview gagal, coba gemini-2.5-flash
         if (!directResponse.ok && (directResponse.status === 429 || directResponse.status === 404 || directResponse.status === 400)) {
-          console.warn(`[GoogleGenerativeAI] Model ${modelName}/gemini-3-flash-preview gagal dengan status ${directResponse.status}. Melakukan failover ke gemini-2.5-flash...`);
+          console.warn(`[GoogleGenerativeAI] Model gemini-3-flash-preview gagal. Melakukan failover ke gemini-2.5-flash...`);
           const ultimateUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
           directResponse = await fetch(ultimateUrl, {
             method: 'POST',
@@ -210,7 +230,7 @@ export const GoogleGenerativeAI = {
 
         // Pemetaan Cerdas Fallback Dinamis Herta Tahap 3: Jika gemini-2.5-flash juga gagal, coba gemini-1.5-flash yang super stabil
         if (!directResponse.ok && (directResponse.status === 429 || directResponse.status === 404 || directResponse.status === 400)) {
-          console.warn(`[GoogleGenerativeAI] Model gemini-2.5-flash gagal dengan status ${directResponse.status}. Melakukan failover ke gemini-1.5-flash...`);
+          console.warn(`[GoogleGenerativeAI] Model gemini-2.5-flash gagal. Melakukan failover ke gemini-1.5-flash...`);
           const legacyUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
           directResponse = await fetch(legacyUrl, {
             method: 'POST',
@@ -252,9 +272,9 @@ export const GoogleGenerativeAI = {
   },
 
   MODELS: {
-    FAST: "gemini-1.5-flash",
-    DEEP: "gemini-1.5-pro",
-    VISION: "gemini-1.5-flash"
+    FAST: "gemini-3.5-flash",
+    DEEP: "gemini-3-pro",
+    VISION: "gemini-3.5-flash"
   },
 
   entities: {
