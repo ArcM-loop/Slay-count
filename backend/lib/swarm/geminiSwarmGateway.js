@@ -20,7 +20,7 @@ const API_KEYS = [
   process.env.GEMINI_API_KEY_EIGHTH
 ].filter(Boolean); // Hanya masukkan key yang ada
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // State internal gateway

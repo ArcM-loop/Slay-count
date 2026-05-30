@@ -200,21 +200,31 @@ KETENTUAN SANGAT PENTING (ANTI-TEMPLATE-COPYING):
 
 Daftar Akun Tersedia: ${accountNames.join(', ')}
 
-Ekstrak informasi dan jawab dalam format JSON:
+Ekstrak informasi dan jawab dalam format JSON yang valid seperti contoh berikut (tanpa ada teks penjelasan tambahan di luar JSON):
 {
-  "total_amount": number_atau_null,
-  "date": "YYYY-MM-DD_atau_null",
-  "merchant_name": "nama_merchant_atau_null",
-  "type": "Pemasukan" atau "Pengeluaran",
-  "suggested_category": "pilih salah satu nama akun paling relevan dari daftar tersedia di atas, atau null jika ragu",
-  "confidence": number (0-100),
+  "total_amount": null,
+  "date": null,
+  "merchant_name": null,
+  "type": "Pengeluaran",
+  "suggested_category": null,
+  "confidence": 0,
   "reason": "alasan singkat santai",
-  "is_efaktur": boolean,
-  "nomor_faktur": "string_atau_null",
-  "npwp_lawan": "string_atau_null",
-  "dpp": number_atau_null,
-  "ppn": number_atau_null
-}`;
+  "is_efaktur": false,
+  "nomor_faktur": null,
+  "npwp_lawan": null,
+  "dpp": null,
+  "ppn": null
+}
+
+Petunjuk pengisian field:
+- "total_amount": isi dengan angka nominal total transaksi (number atau null)
+- "date": isi dengan tanggal transaksi berformat "YYYY-MM-DD" (string atau null)
+- "merchant_name": isi dengan nama merchant/toko (string atau null)
+- "type": "Pemasukan" atau "Pengeluaran" (harus salah satu dari dua nilai ini)
+- "suggested_category": pilih salah satu nama akun yang paling relevan dari Daftar Akun Tersedia di atas, atau null jika ragu
+- "confidence": tingkat keyakinan (0-100)
+- "is_efaktur": set true jika dokumen ini adalah Faktur Pajak/e-Faktur resmi DJP, jika tidak set false
+- "nomor_faktur", "npwp_lawan", "dpp", "ppn": ekstrak jika dokumen adalah e-Faktur/Faktur Pajak, jika tidak isi null`;
 
           const llmResult = await GoogleGenerativeAI.generate({
             prompt: visionPrompt,

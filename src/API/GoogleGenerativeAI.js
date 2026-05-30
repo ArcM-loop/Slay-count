@@ -135,7 +135,7 @@ export const GoogleGenerativeAI = {
     } catch (error) {
       console.warn('[GoogleGenerativeAI.generate] Backend proxy gagal dihubungi. Mencoba memanggil Gemini API secara langsung dari browser sebagai cadangan...', error);
       
-      const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3-flash';
+      const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
       if (!apiKey) {
@@ -252,9 +252,9 @@ export const GoogleGenerativeAI = {
   },
 
   MODELS: {
-    FAST: "gemini-3-flash",
-    DEEP: "gemini-3-pro",
-    VISION: "gemini-3-pro-vision"
+    FAST: "gemini-1.5-flash",
+    DEEP: "gemini-1.5-pro",
+    VISION: "gemini-1.5-flash"
   },
 
   entities: {
