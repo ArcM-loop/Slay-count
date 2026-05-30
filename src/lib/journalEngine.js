@@ -387,7 +387,7 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
       },
       debitEntries,
       creditEntries,
-      { requestAdvisory: true }
+      { requestAdvisory: true, force: true }
     );
 
     if (result && result.success) {

@@ -59,6 +59,7 @@ const CommitSchema = z.object({
   options: z.object({
     requestAdvisory: z.boolean().optional().default(false),
     existingJournalIds: z.array(z.string()).optional().default([]),
+    force: z.boolean().optional().default(false),
   }).optional().default({})
 });
 
@@ -146,7 +147,7 @@ router.post('/commit', verifyFirebaseToken, async (req, res) => {
   
   const swarmResult = await serverSwarm.execute(swarmPayload, swarmContext);
 
-  if (!swarmResult.isFinal) {
+  if (!swarmResult.isFinal && !options.force) {
     console.warn(`[JournalRoute] ${requestId} — REJECTED by MiroFish Swarm:`, swarmResult.objections);
     return res.status(422).json({
       success: false,
@@ -155,6 +156,10 @@ router.post('/commit', verifyFirebaseToken, async (req, res) => {
       errors: swarmResult.objections,
       findings: swarmResult.findings
     });
+  }
+
+  if (!swarmResult.isFinal && options.force) {
+    console.info(`[JournalRoute] ${requestId} — Bypassing MiroFish Swarm validation failure via manual force override.`);
   }
 
   // 5. AI Advisory (opsional, tidak memblokir)
