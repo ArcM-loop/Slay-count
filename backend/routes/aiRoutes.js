@@ -20,7 +20,11 @@ const API_KEYS = [
   process.env.GEMINI_API_KEY_PRIMARY,
   process.env.GEMINI_API_KEY_SECONDARY,
   process.env.GEMINI_API_KEY_TERTIARY,
-  process.env.GEMINI_API_KEY_QUATERNARY
+  process.env.GEMINI_API_KEY_QUATERNARY,
+  process.env.GEMINI_API_KEY_FIFTH,
+  process.env.GEMINI_API_KEY_SIXTH,
+  process.env.GEMINI_API_KEY_SEVENTH,
+  process.env.GEMINI_API_KEY_EIGHTH
 ].filter(Boolean);
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
@@ -122,11 +126,22 @@ router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res)
         body: JSON.stringify(requestBody)
       });
 
-      // Failover Dinamis Herta: Jika model yang direquest (misal gemini-3-flash) belum didukung/404, fallback ke gemini-2.0-flash
+      // Failover Dinamis Herta Tahap 1: Jika model yang direquest (misal gemini-3-flash) belum didukung/404, fallback ke gemini-2.0-flash
       if (!response.ok && (response.status === 404 || response.status === 400)) {
         console.warn(`[Proxy AI] Model ${modelName} tidak didukung atau 404/400. Melakukan failover dinamis ke gemini-2.0-flash...`);
         const fallbackUrl = `${GEMINI_API_BASE}/gemini-2.0-flash:generateContent?key=${apiKey}`;
         response = await fetch(fallbackUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+      }
+
+      // Failover Dinamis Herta Tahap 2: Jika gemini-2.0-flash juga gagal (misal 429 Quota Exceeded), coba gemini-1.5-flash yang super stabil
+      if (!response.ok && (response.status === 429 || response.status === 404 || response.status === 400)) {
+        console.warn(`[Proxy AI] Model ${modelName}/gemini-2.0-flash gagal dengan status ${response.status}. Melakukan failover ke gemini-1.5-flash...`);
+        const ultimateUrl = `${GEMINI_API_BASE}/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        response = await fetch(ultimateUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody)

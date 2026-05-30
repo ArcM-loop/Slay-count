@@ -11,7 +11,13 @@
 
 const API_KEYS = [
   process.env.GEMINI_API_KEY_PRIMARY,
-  process.env.GEMINI_API_KEY_SECONDARY
+  process.env.GEMINI_API_KEY_SECONDARY,
+  process.env.GEMINI_API_KEY_TERTIARY,
+  process.env.GEMINI_API_KEY_QUATERNARY,
+  process.env.GEMINI_API_KEY_FIFTH,
+  process.env.GEMINI_API_KEY_SIXTH,
+  process.env.GEMINI_API_KEY_SEVENTH,
+  process.env.GEMINI_API_KEY_EIGHTH
 ].filter(Boolean); // Hanya masukkan key yang ada
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash';

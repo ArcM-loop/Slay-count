@@ -169,12 +169,31 @@ export const GoogleGenerativeAI = {
           })
         });
         
-        // Pemetaan Cerdas Fallback Dinamis Herta: Jika model pilihan (seperti gemini-3-flash) tidak didukung atau 404/400,
+        // Pemetaan Cerdas Fallback Dinamis Herta Tahap 1: Jika model pilihan (seperti gemini-3-flash) tidak didukung atau 404/400,
         // lakukan retry otomatis menggunakan gemini-2.0-flash sebagai cadangan.
         if (!directResponse.ok && (directResponse.status === 404 || directResponse.status === 400)) {
           console.warn(`[GoogleGenerativeAI] Model ${modelName} tidak didukung atau 404/400. Melakukan failover dinamis ke gemini-2.0-flash...`);
           const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
           directResponse = await fetch(fallbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts }],
+              generationConfig: {
+                temperature,
+                maxOutputTokens: maxTokens,
+                ...(jsonMode && { responseMimeType: 'application/json' }),
+                ...(stopSequences && { stopSequences })
+              }
+            })
+          });
+        }
+        
+        // Pemetaan Cerdas Fallback Dinamis Herta Tahap 2: Jika gemini-2.0-flash juga gagal (misal 429 Quota Exceeded), coba gemini-1.5-flash yang super stabil
+        if (!directResponse.ok && (directResponse.status === 429 || directResponse.status === 404 || directResponse.status === 400)) {
+          console.warn(`[GoogleGenerativeAI] Model ${modelName}/gemini-2.0-flash gagal dengan status ${directResponse.status}. Melakukan failover ke gemini-1.5-flash...`);
+          const ultimateUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+          directResponse = await fetch(ultimateUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

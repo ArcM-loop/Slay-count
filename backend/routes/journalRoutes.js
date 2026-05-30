@@ -9,8 +9,26 @@ import { z } from 'zod';
 const router = express.Router();
 
 // Inisialisasi Gemini (server-side — API key tidak pernah ke browser)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_PRIMARY);
 const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3-flash';
+
+function getGenAIInstance() {
+  const keys = [
+    process.env.GEMINI_API_KEY_PRIMARY,
+    process.env.GEMINI_API_KEY_SECONDARY,
+    process.env.GEMINI_API_KEY_TERTIARY,
+    process.env.GEMINI_API_KEY_QUATERNARY,
+    process.env.GEMINI_API_KEY_FIFTH,
+    process.env.GEMINI_API_KEY_SIXTH,
+    process.env.GEMINI_API_KEY_SEVENTH,
+    process.env.GEMINI_API_KEY_EIGHTH
+  ].filter(Boolean);
+  
+  if (keys.length === 0) {
+    throw new Error('Tidak ada API Key yang dikonfigurasi.');
+  }
+  const apiKey = keys[Math.floor(Math.random() * keys.length)];
+  return new GoogleGenerativeAI(apiKey);
+}
 
 // ── Input Schema Validation ──────────────────────────────────────────────────
 const JournalEntrySchema = z.object({
@@ -47,7 +65,7 @@ const CommitSchema = z.object({
 // ── Helper: Dapatkan advisory dari Gemini (tidak memblokir jika gagal) ─────
 async function getAIAdvisory(tx, validationWarnings) {
   try {
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+    const model = getGenAIInstance().getGenerativeModel({ model: MODEL_NAME });
     const prompt = `Kamu adalah asisten akuntansi Indonesia. Berikan 1 kalimat advisory singkat (bahasa santai/Gen Z) untuk transaksi berikut:
       - Deskripsi: ${tx.description}
       - Kategori: ${tx.category || 'Umum'}

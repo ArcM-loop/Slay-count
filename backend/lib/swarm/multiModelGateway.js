@@ -29,7 +29,13 @@ export async function callGemini(prompt, options = {}) {
   // Gunakan load balancing antar key jika ada (seperti di gateway sebelumnya)
   const API_KEYS = [
     process.env.GEMINI_API_KEY_PRIMARY,
-    process.env.GEMINI_API_KEY_SECONDARY
+    process.env.GEMINI_API_KEY_SECONDARY,
+    process.env.GEMINI_API_KEY_TERTIARY,
+    process.env.GEMINI_API_KEY_QUATERNARY,
+    process.env.GEMINI_API_KEY_FIFTH,
+    process.env.GEMINI_API_KEY_SIXTH,
+    process.env.GEMINI_API_KEY_SEVENTH,
+    process.env.GEMINI_API_KEY_EIGHTH
   ].filter(Boolean);
   
   const apiKey = API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
