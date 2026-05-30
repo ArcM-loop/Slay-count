@@ -252,16 +252,20 @@ Ekstrak informasi dan jawab dalam format JSON:
 
           const cleanMerchant = (parsed.merchant_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-          const existingTx = await GoogleGenerativeAI.entities.Transaction.filter({
-            business_id: activeBusiness.id,
-            amount: parsed.total_amount,
-            date: parsed.date
-          });
+          // Guard: Hanya cek duplikat jika amount DAN date tersedia (tidak undefined/null)
+          // Firestore tidak boleh menerima undefined dalam where() — akan throw FirebaseError
+          let isDuplicate = false;
+          if (parsed.total_amount != null && parsed.date != null) {
+            const criteria = { business_id: activeBusiness.id };
+            if (parsed.total_amount != null) criteria.amount = parsed.total_amount;
+            if (parsed.date != null) criteria.date = parsed.date;
 
-          const isDuplicate = existingTx.some(tx => {
-            const txMerchant = (tx.merchant_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            return txMerchant.includes(cleanMerchant) || cleanMerchant.includes(txMerchant);
-          });
+            const existingTx = await GoogleGenerativeAI.entities.Transaction.filter(criteria);
+            isDuplicate = existingTx.some(tx => {
+              const txMerchant = (tx.merchant_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              return txMerchant.includes(cleanMerchant) || cleanMerchant.includes(txMerchant);
+            });
+          }
 
           setExtracted({ ...parsed, receipt_url: url, isDuplicate });
           setStep('review');

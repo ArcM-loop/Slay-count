@@ -286,9 +286,11 @@ function createFirebaseEntity(tableName) {
       const constraints = [where('user_id', '==', user.uid)];
       
       Object.entries(criteria).forEach(([key, value]) => {
-        if (key !== 'user_id') {
-          constraints.push(where(key, '==', value));
-        }
+        // [Guard] Skip jika key adalah user_id atau value-nya undefined/null
+        // Firestore where() tidak menerima undefined — akan throw FirebaseError
+        if (key === 'user_id') return;
+        if (value === undefined || value === null) return;
+        constraints.push(where(key, '==', value));
       });
 
       if (limitNum) constraints.push(firestoreLimit(limitNum));
