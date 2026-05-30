@@ -169,11 +169,11 @@ export const GoogleGenerativeAI = {
           })
         });
         
-        // Pemetaan Cerdas Fallback Dinamis Herta Tahap 1: Jika model pilihan (seperti gemini-3-flash) tidak didukung atau 404/400,
-        // lakukan retry otomatis menggunakan gemini-3-flash sebagai cadangan.
+        // Pemetaan Cerdas Fallback Dinamis Herta Tahap 1: Jika model pilihan (seperti gemini-3.5-flash) tidak didukung atau 404/400,
+        // lakukan retry otomatis menggunakan gemini-3-flash-preview sebagai cadangan.
         if (!directResponse.ok && (directResponse.status === 404 || directResponse.status === 400)) {
-          console.warn(`[GoogleGenerativeAI] Model ${modelName} tidak didukung atau 404/400. Melakukan failover dinamis ke gemini-3-flash...`);
-          const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${apiKey}`;
+          console.warn(`[GoogleGenerativeAI] Model ${modelName} tidak didukung atau 404/400. Melakukan failover dinamis ke gemini-3-flash-preview...`);
+          const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
           directResponse = await fetch(fallbackUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -189,11 +189,30 @@ export const GoogleGenerativeAI = {
           });
         }
         
-        // Pemetaan Cerdas Fallback Dinamis Herta Tahap 2: Jika gemini-3-flash juga gagal (misal 429 Quota Exceeded), coba gemini-3-flash yang super stabil
+        // Pemetaan Cerdas Fallback Dinamis Herta Tahap 2: Jika gemini-3-flash-preview gagal, coba gemini-2.5-flash
         if (!directResponse.ok && (directResponse.status === 429 || directResponse.status === 404 || directResponse.status === 400)) {
-          console.warn(`[GoogleGenerativeAI] Model ${modelName}/gemini-3-flash gagal dengan status ${directResponse.status}. Melakukan failover ke gemini-3-flash...`);
-          const ultimateUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${apiKey}`;
+          console.warn(`[GoogleGenerativeAI] Model ${modelName}/gemini-3-flash-preview gagal dengan status ${directResponse.status}. Melakukan failover ke gemini-2.5-flash...`);
+          const ultimateUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
           directResponse = await fetch(ultimateUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts }],
+              generationConfig: {
+                temperature,
+                maxOutputTokens: maxTokens,
+                ...(jsonMode && { responseMimeType: 'application/json' }),
+                ...(stopSequences && { stopSequences })
+              }
+            })
+          });
+        }
+
+        // Pemetaan Cerdas Fallback Dinamis Herta Tahap 3: Jika gemini-2.5-flash juga gagal, coba gemini-1.5-flash yang super stabil
+        if (!directResponse.ok && (directResponse.status === 429 || directResponse.status === 404 || directResponse.status === 400)) {
+          console.warn(`[GoogleGenerativeAI] Model gemini-2.5-flash gagal dengan status ${directResponse.status}. Melakukan failover ke gemini-1.5-flash...`);
+          const legacyUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+          directResponse = await fetch(legacyUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
