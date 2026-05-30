@@ -26,7 +26,7 @@ import { getFirestore } from "firebase/firestore";
 // Firebase config — client config ini memang harus ada di browser (bukan secret)
 // "accountomation" adalah nama Firebase Project yang benar untuk SlayCount
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBjVZRY_nwKlPghsDkCdfgHuL1B37jnh1g", 
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAaxAejfF-ttqU7Y0Hh_3odl4S--0gNWA8", 
   authDomain: "accountomation.firebaseapp.com",
   projectId: "accountomation",
   storageBucket: "accountomation.firebasestorage.app",
