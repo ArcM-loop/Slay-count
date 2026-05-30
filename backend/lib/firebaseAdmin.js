@@ -21,11 +21,18 @@ if (!admin.apps.length) {
     }
   } else if (process.env.FIREBASE_PROJECT_ID) {
     try {
+      // Strip tanda kutip yang mungkin ikut terbawa dari file .env saat deploy via --set-env-vars
+      // Contoh: FIREBASE_PRIVATE_KEY="-----BEGIN..." → ikut menyimpan karakter " di Cloud Run
+      const rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
+      const privateKey = rawKey
+        .replace(/^["']|["']$/g, '')   // Strip leading/trailing quotes
+        .replace(/\\n/g, '\n');         // Konversi literal \n ke newline asli
+
       admin.initializeApp({
         credential: admin.credential.cert({
           projectId:   process.env.FIREBASE_PROJECT_ID,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n')
+          privateKey
         })
       });
       console.log('[FirebaseAdmin] ✅ Initialized using environment variables for project:', process.env.FIREBASE_PROJECT_ID);
