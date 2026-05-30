@@ -56,11 +56,12 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "[SUCCESS] Image berhasil di-build dan disimpan di: $IMAGE_NAME" -ForegroundColor Green
 
-# 3. Ekstrak Environment Variables dari file .env lokal
+# 3. Ekstrak Environment Variables dari file .env lokal (Kecuali PORT yang merupakan reserved env di Cloud Run)
 $ENV_VARS = ""
-if (Test-Path .env) {
-    Write-Host "[ENV] Membaca konfigurasi environment dari file .env..." -ForegroundColor Yellow
-    $lines = Get-Content .env | Where-Object { $_ -notmatch '^#' -and $_ -match '=' }
+$BackendEnvPath = Join-Path $PSScriptRoot ".env"
+if (Test-Path $BackendEnvPath) {
+    Write-Host "[ENV] Membaca konfigurasi environment dari file .env di: $BackendEnvPath..." -ForegroundColor Yellow
+    $lines = Get-Content $BackendEnvPath | Where-Object { $_ -notmatch '^#' -and $_ -match '=' -and $_ -notmatch '^PORT=' }
     $ENV_VARS = ($lines -join ",")
 }
 
