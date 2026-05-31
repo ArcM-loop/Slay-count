@@ -12,7 +12,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { OpenRouter } from "@openrouter/sdk";
 
 // 1. Gemini Configuration
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
 // 2. Llama & GPT (OpenRouter) Configuration
 const openrouter = new OpenRouter({

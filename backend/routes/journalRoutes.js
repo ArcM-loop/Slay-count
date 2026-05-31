@@ -9,7 +9,7 @@ import { z } from 'zod';
 const router = express.Router();
 
 // Inisialisasi Gemini (server-side — API key tidak pernah ke browser)
-const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
 function getGenAIInstance() {
   const keys = [
