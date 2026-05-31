@@ -100,6 +100,9 @@ app.get('/api', (req, res) => {
 // Catch-all route untuk React (harus diletakkan di bagian paling bawah setelah semua route API)
 app.use((req, res, next) => {
   if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/auth')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   } else {
     next();
