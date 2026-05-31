@@ -679,6 +679,11 @@ Aturan Pengisian:
                     className="w-full bg-transparent border-none text-sm font-semibold focus:outline-none focus:ring-0 text-foreground p-0 cursor-pointer outline-none font-sans"
                   >
                     <option value="" className="bg-background text-foreground">-- Pilih Kategori Akun --</option>
+                    {!accounts.some(acc => acc.name === extracted.suggested_category) && extracted.suggested_category && (
+                      <option value={extracted.suggested_category} className="bg-background text-foreground italic font-medium">
+                        ✨ {extracted.suggested_category} (Saran AI)
+                      </option>
+                    )}
                     {accounts.map(acc => (
                       <option key={acc.id} value={acc.name} className="bg-background text-foreground">
                         {acc.name} ({acc.type})
