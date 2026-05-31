@@ -3,6 +3,8 @@
  * Logika untuk memproses file CSV/Excel yang berantakan dan memetakannya ke format SlayCount.
  */
 
+import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
+
 export const analyzeColumns = (headers) => {
     const mapping = {
         date: null,
