@@ -117,7 +117,17 @@ export const GoogleGenerativeAI = {
       });
 
       if (!response.ok) {
-        throw new Error(`AI Request failed: ${response.status}`);
+        let errMsg = '';
+        try {
+          const errData = await response.json();
+          errMsg = errData.message || errData.error || '';
+        } catch (_) {
+          try {
+            errMsg = await response.text();
+          } catch (_) {}
+        }
+        const formattedErr = errMsg ? `${response.status} (${errMsg})` : `${response.status}`;
+        throw new Error(`AI Request failed with status ${formattedErr}`);
       }
 
       const data = await response.json();
@@ -133,13 +143,23 @@ export const GoogleGenerativeAI = {
         ]
       };
     } catch (error) {
-      console.warn('[GoogleGenerativeAI.generate] Backend proxy gagal dihubungi. Mencoba memanggil Gemini API secara langsung dari browser sebagai cadangan...', error);
+      console.warn('[GoogleGenerativeAI.generate] Panggilan AI Backend gagal.', error);
+      
+      // Jika error 401 (Unauthorized/Sesi Habis), infokan langsung ke pengguna agar login ulang!
+      if (error.message && (
+        error.message.includes('401') || 
+        error.message.toLowerCase().includes('unauthorized') || 
+        error.message.toLowerCase().includes('token tidak valid') ||
+        error.message.toLowerCase().includes('sesi tidak ditemukan')
+      )) {
+        throw new Error('Sesi masuk Anda telah kedaluwarsa atau tidak valid. Silakan LOGOUT dan LOGIN kembali untuk menyegarkan sesi Anda.');
+      }
       
       const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.5-flash';
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
       if (!apiKey) {
-        throw new Error('Backend tidak dapat dihubungi dan tidak ada VITE_GEMINI_API_KEY di frontend sebagai cadangan.');
+        throw new Error(`Gagal menghubungi Backend Proxy AI: ${error.message}. Tidak ada API Key cadangan di browser.`);
       }
       
       try {
