@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { useBusiness } from '@/lib/BusinessContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -107,6 +107,9 @@ export default function AddTransactionModal({ open, onClose }) {
             <Zap className="w-5 h-5 text-primary" />
             Tambah Transaksi Cepat ⚡
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulir untuk menambah transaksi cepat
+          </DialogDescription>
         </DialogHeader>
 
         <div className="max-h-[70vh] overflow-y-auto pr-1.5 space-y-4 mt-2">

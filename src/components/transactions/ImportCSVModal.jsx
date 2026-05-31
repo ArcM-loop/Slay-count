@@ -5,6 +5,7 @@ import {
   DialogContent, 
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Upload, CheckCircle, AlertCircle, Loader2, Sparkles, ArrowRight, FileSpreadsheet } from 'lucide-react';
@@ -187,6 +188,7 @@ export default function ImportCSVModal({ open, onClose, businessId, onImportSucc
                     </div>
                     <div>
                         <DialogTitle className="text-2xl font-black text-foreground">Slay AI Excel Importer</DialogTitle>
+                        <DialogDescription className="sr-only">Pop-up modal untuk melakukan import data transaksi dari file CSV</DialogDescription>
                         <p className="text-sm text-muted-foreground mt-1">Upload data setengah jadi, biar AI yang ngerapiin formatnya otomatis!</p>
                     </div>
                 </div>

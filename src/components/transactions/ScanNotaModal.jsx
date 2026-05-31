@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { useBusiness } from '@/lib/BusinessContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, Upload, Camera, Sparkles, CheckCircle, QrCode, ShieldAlert } from 'lucide-react';
 import { formatRupiah } from '@/lib/formatters';
@@ -415,6 +415,9 @@ Petunjuk pengisian field:
             <Camera className="w-5 h-5 text-primary" />
             Scan Nota & e-Faktur 📸
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Pop-up modal untuk melakukan scan nota dan e-faktur
+          </DialogDescription>
         </DialogHeader>
 
         <div id="hidden-qr-reader" style={{ display: 'none' }}></div>

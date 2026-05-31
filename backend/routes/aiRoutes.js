@@ -187,8 +187,20 @@ router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res)
       // Parse JSON jika diminta
       if (jsonMode) {
         try {
-          return res.json({ result: JSON.parse(text) });
+          let cleanText = text.trim();
+          if (cleanText.includes('```')) {
+            cleanText = cleanText.replace(/```json/g, '').replace(/```/g, '').trim();
+          }
+          return res.json({ result: JSON.parse(cleanText) });
         } catch {
+          // Coba cari pola {...} menggunakan regex sebagai upaya terakhir
+          try {
+            const match = text.match(/\{.*\}/s)?.[0];
+            if (match) {
+              return res.json({ result: JSON.parse(match) });
+            }
+          } catch {}
+          console.warn(`[Proxy AI] Gagal mem-parse JSON dari AI. Raw text: ${text}`);
           return res.json({ result: { raw: text, parseError: true } });
         }
       }
@@ -197,6 +209,77 @@ router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res)
 
     } catch (error) {
       lastError = error;
+    }
+  }
+
+  // ==========================================
+  // FAILOVER DINAMIS HERTA TAHAP 4: OPENROUTER
+  // Jika seluruh API key Gemini langsung di Google Cloud diblokir/gagal,
+  // lakukan failover otomatis menggunakan OpenRouter API Key yang aktif!
+  // Ini menjamin sistem scan nota tetap berjalan 100% andal & tahan banting.
+  // ==========================================
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  if (openRouterKey) {
+    try {
+      console.warn(`[Proxy AI] Seluruh API key Gemini langsung gagal/diblokir. Melakukan failover darurat ke OpenRouter...`);
+      
+      const messages = [];
+      const userContent = [{ type: 'text', text: prompt }];
+      
+      if (req.body.image && req.body.mimeType) {
+        userContent.push({
+          type: 'image_url',
+          image_url: {
+            url: `data:${req.body.mimeType};base64,${req.body.image}`
+          }
+        });
+      }
+      
+      messages.push({ role: 'user', content: userContent });
+      
+      const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openRouterKey}`
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages,
+          max_tokens: purpose === 'worker' ? 1000 : 2048,
+          temperature,
+          ...(jsonMode && { response_format: { type: 'json_object' } })
+        })
+      });
+      
+      if (openRouterResponse.ok) {
+        const orData = await openRouterResponse.json();
+        const text = orData.choices?.[0]?.message?.content || '';
+        console.log(`[Proxy AI] Sukses via OpenRouter Failover! Model: ${orData.model}`);
+        
+        let cleanText = text.trim();
+        if (cleanText.includes('```')) {
+          cleanText = cleanText.replace(/```json/g, '').replace(/```/g, '').trim();
+        }
+        
+        if (jsonMode) {
+          try {
+            return res.json({ result: JSON.parse(cleanText) });
+          } catch {
+            const match = text.match(/\{.*\}/s)?.[0];
+            if (match) {
+              return res.json({ result: JSON.parse(match) });
+            }
+            return res.json({ result: { raw: text, parseError: true } });
+          }
+        }
+        return res.json({ result: text });
+      } else {
+        const orErr = await openRouterResponse.json().catch(() => ({}));
+        console.error(`[Proxy AI] OpenRouter Failover gagal dengan status ${openRouterResponse.status}:`, orErr.error?.message);
+      }
+    } catch (orErr) {
+      console.error(`[Proxy AI] Error pada OpenRouter Failover:`, orErr.message);
     }
   }
 

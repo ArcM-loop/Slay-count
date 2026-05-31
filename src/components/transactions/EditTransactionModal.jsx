@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { GoogleGenerativeAI } from '@/API/GoogleGenerativeAI';
 import { useBusiness } from '@/lib/BusinessContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -134,6 +134,9 @@ export default function EditTransactionModal({ transaction, open, onClose }) {
             <Pencil className="w-5 h-5 text-primary" />
             Edit Transaksi ✏️
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulir untuk memperbarui detail transaksi
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
