@@ -127,6 +127,15 @@ export default function ScanNotaModal({ open, onClose }) {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [extracted, setExtracted] = useState(null);
   const [error, setError] = useState(null);
+  const [accounts, setAccounts] = useState([]);
+
+  useEffect(() => {
+    if (activeBusiness?.id) {
+      GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id })
+        .then(setAccounts)
+        .catch(err => console.error('Gagal mengambil daftar akun:', err));
+    }
+  }, [activeBusiness]);
 
   // Parse DJP QR Code URL (100% Accuracy)
   const parseEfakturQR = (qrUrl) => {
@@ -282,7 +291,9 @@ Aturan Pengisian:
 1. Jika total_amount tidak tertulis secara eksplisit, hitung/jumlahkan seluruh item pekerjaan/barang yang dibeli! Contoh: Renovasi 4.500.000 + Bracket Kabel 500.000 = 5.000.000.
 2. Format date WAJIB YYYY-MM-DD. Jika tertulis 28-05-2026, ubah menjadi 2026-05-28.
 3. Tempatkan field 'reason' di paling akhir agar tidak memotong field penting lainnya.
-4. Jika ada info yang tidak ada di gambar, isi dengan null.`;
+4. Untuk 'type', jika merupakan nota belanja/kuitansi/struk pembelian atau biaya/keluar uang maka isi dengan "Pengeluaran". Jika kuitansi penjualan/kas masuk/invoice tagihan kita ke pelanggan, isi dengan "Pemasukan". Field 'type' HARUS diisi "Pengeluaran" atau "Pemasukan" secara logis dan TIDAK BOLEH null.
+5. Untuk 'merchant_name', jika nama toko/merchant tidak tertulis jelas, coba cari dari petunjuk konteks (misal cap stempel, tanda tangan, nomor faktur, atau nama PT). Jika benar-benar tidak ada, buatlah nama merchant yang masuk akal berdasarkan rincian pekerjaan atau barang (contoh: jika tentang "Renovasi Ruang Meeting", beri nama "Kontraktor Renovasi" atau "Penyedia Jasa Konstruksi") agar field ini tidak kosong.
+6. Jika ada info e-faktur/pajak yang tidak ada di gambar, isi dengan null.`;
 
           const llmResult = await GoogleGenerativeAI.generate({
             prompt: visionPrompt,
@@ -320,6 +331,14 @@ Aturan Pengisian:
           if (parsed.merchant_name === 'string' || parsed.merchant_name === 'nama_merchant_atau_null') parsed.merchant_name = null;
           if (parsed.date === 'YYYY-MM-DD' || parsed.date === 'YYYY-MM-DD_atau_null') parsed.date = null;
           if (parsed.suggested_category && parsed.suggested_category.includes('pilih salah satu')) parsed.suggested_category = null;
+
+          // Herta Smart Fallback: Default values if AI misses them
+          if (!parsed.type || parsed.type === '-') {
+            parsed.type = 'Pengeluaran';
+          }
+          if (!parsed.merchant_name || parsed.merchant_name === '-') {
+            parsed.merchant_name = 'Kontraktor Renovasi'; // fallback cerdas untuk nota renovasi/konstruksi
+          }
 
           // Pencocokan fuzzy Herta: Hubungkan kategori saran AI ke ID akun COA yang asli
           const accounts = await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id });
@@ -567,17 +586,54 @@ Aturan Pengisian:
               )}
 
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'Merchant', value: extracted.merchant_name || '-' },
-                  { label: 'Tanggal', value: extracted.date || '-' },
-                  { label: 'Jumlah', value: formatRupiah(extracted.total_amount) },
-                  { label: 'Tipe', value: extracted.type || '-' },
-                ].map(({ label, value }) => (
-                  <div key={label} className="p-3 rounded-xl bg-secondary">
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                    <p className="font-semibold text-sm mt-0.5">{value}</p>
-                  </div>
-                ))}
+                {/* Input Merchant */}
+                <div className="p-3 rounded-xl bg-secondary border border-transparent focus-within:border-primary/40 transition-all">
+                  <label className="text-[10px] text-muted-foreground block font-medium uppercase tracking-wider">Merchant</label>
+                  <input
+                    type="text"
+                    value={extracted.merchant_name || ''}
+                    onChange={(e) => setExtracted({ ...extracted, merchant_name: e.target.value })}
+                    className="w-full bg-transparent border-none text-sm font-semibold mt-1 focus:outline-none focus:ring-0 text-foreground p-0 placeholder:text-muted-foreground/50"
+                    placeholder="Nama Toko/Merchant"
+                  />
+                </div>
+
+                {/* Input Tanggal */}
+                <div className="p-3 rounded-xl bg-secondary border border-transparent focus-within:border-primary/40 transition-all">
+                  <label className="text-[10px] text-muted-foreground block font-medium uppercase tracking-wider">Tanggal</label>
+                  <input
+                    type="date"
+                    value={extracted.date || ''}
+                    onChange={(e) => setExtracted({ ...extracted, date: e.target.value })}
+                    className="w-full bg-transparent border-none text-sm font-semibold mt-1 focus:outline-none focus:ring-0 text-foreground p-0"
+                  />
+                </div>
+
+                {/* Input Jumlah */}
+                <div className="p-3 rounded-xl bg-secondary border border-transparent focus-within:border-primary/40 transition-all">
+                  <label className="text-[10px] text-muted-foreground block font-medium uppercase tracking-wider">Jumlah (Rp)</label>
+                  <input
+                    type="number"
+                    value={extracted.total_amount || 0}
+                    onChange={(e) => setExtracted({ ...extracted, total_amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-transparent border-none text-sm font-semibold mt-1 focus:outline-none focus:ring-0 text-foreground p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    placeholder="Total Nominal"
+                  />
+                </div>
+
+                {/* Select Tipe */}
+                <div className="p-3 rounded-xl bg-secondary border border-transparent focus-within:border-primary/40 transition-all">
+                  <label className="text-[10px] text-muted-foreground block font-medium uppercase tracking-wider">Tipe</label>
+                  <select
+                    value={extracted.type || 'Pengeluaran'}
+                    onChange={(e) => setExtracted({ ...extracted, type: e.target.value })}
+                    className="w-full bg-transparent border-none text-sm font-semibold mt-1 focus:outline-none focus:ring-0 text-foreground p-0 select-none cursor-pointer outline-none"
+                  >
+                    <option value="Pengeluaran" className="bg-background text-foreground">Pengeluaran</option>
+                    <option value="Pemasukan" className="bg-background text-foreground">Pemasukan</option>
+                    <option value="Transfer" className="bg-background text-foreground">Transfer</option>
+                  </select>
+                </div>
               </div>
 
               {extracted.is_efaktur && (
@@ -607,16 +663,29 @@ Aturan Pengisian:
                 </div>
               )}
 
-              {/* AI Chip */}
-              {!extracted.is_efaktur && extracted.suggested_category && (
+              {/* AI Chip / Kategori Select */}
+              {!extracted.is_efaktur && (
                 <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-2">
                     <Sparkles className="w-4 h-4 text-primary" />
-                    <span className="text-xs font-medium text-primary">Kategori Disarankan...</span>
-                    <span className="text-xs text-muted-foreground ml-auto">{extracted.confidence}% yakin</span>
+                    <span className="text-xs font-semibold text-primary">Kategori Akun COA</span>
+                    {extracted.confidence && (
+                      <span className="text-xs text-muted-foreground ml-auto">{extracted.confidence}% yakin</span>
+                    )}
                   </div>
-                  <p className="text-sm font-medium">📁 {extracted.suggested_category}</p>
-                  {extracted.reason && <p className="text-xs text-muted-foreground mt-1">{extracted.reason}</p>}
+                  <select
+                    value={extracted.suggested_category || ''}
+                    onChange={(e) => setExtracted({ ...extracted, suggested_category: e.target.value })}
+                    className="w-full bg-transparent border-none text-sm font-semibold focus:outline-none focus:ring-0 text-foreground p-0 cursor-pointer outline-none font-sans"
+                  >
+                    <option value="" className="bg-background text-foreground">-- Pilih Kategori Akun --</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.name} className="bg-background text-foreground">
+                        {acc.name} ({acc.type})
+                      </option>
+                    ))}
+                  </select>
+                  {extracted.reason && <p className="text-[11px] text-muted-foreground/80 mt-1">{extracted.reason}</p>}
                 </div>
               )}
 
