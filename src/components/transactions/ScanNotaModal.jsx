@@ -257,46 +257,36 @@ export default function ScanNotaModal({ open, onClose }) {
           // Ambil daftar akun
           const accountNames = (await GoogleGenerativeAI.entities.Account.filter({ business_id: activeBusiness.id })).map(a => a.name);
 
-          const visionPrompt = `Kamu adalah Biyo, akuntan senior ahli akuntansi Indonesia (SAK EMKM & PSAK) dan perpajakan DJP.
+          const visionPrompt = `Kamu adalah Biyo, akuntan senior ahli akuntansi Indonesia (SAK EMKM & PSAK).
 Analisis GAMBAR dokumen keuangan/nota/struk/invoice/faktur ini secara langsung dan ekstrak datanya.
-
-KETENTUAN SANGAT PENTING (ANTI-TEMPLATE-COPYING):
-1. JANGAN PERNAH mengembalikan nilai placeholder seperti kata "string", "number", "YYYY-MM-DD", "nama akun dari daftar tersedia", atau "pilih salah satu..." ke dalam isi JSON.
-2. Jika ada informasi yang TIDAK dapat dibaca atau TIDAK ada di gambar, isi dengan null (misalnya: "merchant_name": null, atau "npwp_lawan": null).
-3. Jika gambar sama sekali tidak berkaitan dengan transaksi keuangan/nota belanja (seperti foto pemandangan, barang random, wajah orang), jawab dengan JSON: {"error": "Gambar bukan merupakan dokumen nota/transaksi yang valid."}
-4. Ekstrak total_amount sebagai angka murni (number), bukan string. Jika tertulis "Rp 150.000", jadikan 150000.
 
 Daftar Akun Tersedia: ${accountNames.join(', ')}
 
-Ekstrak informasi dan jawab dalam format JSON yang valid seperti contoh berikut (tanpa ada teks penjelasan tambahan di luar JSON):
+Jawab dalam format JSON murni berikut:
 {
-  "total_amount": null,
-  "date": null,
-  "merchant_name": null,
+  "total_amount": 0,
+  "date": "YYYY-MM-DD",
+  "merchant_name": "Nama Toko/Merchant",
   "type": "Pengeluaran",
-  "suggested_category": null,
-  "confidence": 0,
-  "reason": "alasan singkat santai",
+  "suggested_category": "Kategori COA",
   "is_efaktur": false,
   "nomor_faktur": null,
   "npwp_lawan": null,
   "dpp": null,
-  "ppn": null
+  "ppn": null,
+  "confidence": 95,
+  "reason": "Alasan singkat"
 }
 
-Petunjuk pengisian field:
-- "total_amount": isi dengan angka nominal total transaksi (number atau null)
-- "date": isi dengan tanggal transaksi berformat "YYYY-MM-DD" (string atau null)
-- "merchant_name": isi dengan nama merchant/toko (string atau null)
-- "type": "Pemasukan" atau "Pengeluaran" (harus salah satu dari dua nilai ini)
-- "suggested_category": pilih salah satu nama akun yang paling relevan dari Daftar Akun Tersedia di atas, atau null jika ragu
-- "confidence": tingkat keyakinan (0-100)
-- "is_efaktur": set true jika dokumen ini adalah Faktur Pajak/e-Faktur resmi DJP, jika tidak set false
-- "nomor_faktur", "npwp_lawan", "dpp", "ppn": ekstrak jika dokumen adalah e-Faktur/Faktur Pajak, jika tidak isi null`;
+Aturan Pengisian:
+1. Jika total_amount tidak tertulis secara eksplisit, hitung/jumlahkan seluruh item pekerjaan/barang yang dibeli! Contoh: Renovasi 4.500.000 + Bracket Kabel 500.000 = 5.000.000.
+2. Format date WAJIB YYYY-MM-DD. Jika tertulis 28-05-2026, ubah menjadi 2026-05-28.
+3. Tempatkan field 'reason' di paling akhir agar tidak memotong field penting lainnya.
+4. Jika ada info yang tidak ada di gambar, isi dengan null.`;
 
           const llmResult = await GoogleGenerativeAI.generate({
             prompt: visionPrompt,
-            temperature: 0.1,
+            temperature: 0.4,
             jsonMode: true,
             image: base64Image,
             mimeType: file.type || 'image/jpeg'
