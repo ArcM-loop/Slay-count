@@ -173,12 +173,12 @@ router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res)
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        if (response.status === 429) {
-          // Rate limited — coba key berikutnya
-          lastError = new Error('Rate limited');
+        if (response.status === 429 || response.status === 403 || response.status === 401) {
+          console.warn(`[Proxy AI] Key ke-${attempt+1} gagal dengan status ${response.status}. Mencoba key berikutnya...`);
+          lastError = new Error(`API Key error: ${response.status}`);
           continue;
         }
-        throw new Error(`Gemini API Error ${response.status}`);
+        throw new Error(errData?.error?.message || `Gemini API Error ${response.status}`);
       }
 
       const data = await response.json();

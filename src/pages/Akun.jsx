@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, Plus, Sparkles, Trash2 } from 'lucide-react';
 
 const TYPES = ['Aset', 'Kewajiban', 'Ekuitas', 'Pendapatan', 'Beban'];
@@ -150,6 +150,9 @@ export default function Akun() {
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle>Tambah Akun Baru ✨</DialogTitle>
+            <DialogDescription className="sr-only">
+              Modal formulir untuk menambahkan akun akuntansi baru ke bagan akun (COA).
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
             <div className="grid grid-cols-2 gap-3">

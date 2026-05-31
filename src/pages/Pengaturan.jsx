@@ -6,7 +6,7 @@ import { useBusiness } from '@/lib/BusinessContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { 
   Loader2, 
   Plus, 
@@ -503,6 +503,9 @@ export default function Pengaturan() {
         <DialogContent className="bg-card border-border sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black">Tambah Bisnis Baru 🏢</DialogTitle>
+            <DialogDescription className="sr-only">
+              Modal formulir untuk mendaftarkan badan usaha atau bisnis baru ke sistem SlayCount.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
