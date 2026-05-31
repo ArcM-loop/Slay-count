@@ -7,6 +7,7 @@ import { formatRupiah, formatDate } from '@/lib/formatters';
 import { generatePONumber, TOLERANCE } from '@/lib/poMatchingEngine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { commitJournalToServer } from '@/lib/secureApiClient';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -269,7 +270,7 @@ function CreatePOModal({ open, onClose, businessId, existingCount, queryClient }
       existingCount
     );
 
-    await GoogleGenerativeAI.entities.PurchaseOrder.create({
+    const poDoc = await GoogleGenerativeAI.entities.PurchaseOrder.create({
       business_id: businessId,
       po_number: poNumber,
       vendor_name: form.vendor_name.trim(),
@@ -281,33 +282,38 @@ function CreatePOModal({ open, onClose, businessId, existingCount, queryClient }
       notes: form.notes,
     });
 
-    // FIX #5: Buat jurnal untuk mencatat Hutang dan Persediaan
-    const entries = [{
-        business_id: businessId,
+    // FIX #5: Buat jurnal untuk mencatat Hutang dan Persediaan via secure Backend API (karena penulisan client-side ke journal_entries diblokir aturan keamanan)
+    const debitEntries = [{
         account_id: 'auto_1-1400',
         account_code: '1-1400',
         account_name: 'Persediaan Barang',
         account_type: 'Aset',
         debit: totalAmount,
         credit: 0,
-        description: `PO ${poNumber} - ${form.vendor_name.trim()}`,
-        date: form.date,
-        entry_type: 'purchase_order',
-        created_at: new Date().toISOString()
-    }, {
-        business_id: businessId,
+        description: `PO ${poNumber} - ${form.vendor_name.trim()}`
+    }];
+    const creditEntries = [{
         account_id: 'auto_2-1000',
         account_code: '2-1000',
         account_name: 'Hutang Usaha',
         account_type: 'Kewajiban',
         debit: 0,
         credit: totalAmount,
-        description: `PO ${poNumber} - ${form.vendor_name.trim()}`,
-        date: form.date,
-        entry_type: 'purchase_order',
-        created_at: new Date().toISOString()
+        description: `PO ${poNumber} - ${form.vendor_name.trim()}`
     }];
-    await GoogleGenerativeAI.entities.JournalEntry.bulkCreate(entries);
+
+    await commitJournalToServer(
+      {
+        id: poDoc.id,
+        business_id: businessId,
+        date: form.date,
+        description: `PO ${poNumber} - ${form.vendor_name.trim()}`,
+        amount: totalAmount
+      },
+      debitEntries,
+      creditEntries,
+      { force: true }
+    );
 
     queryClient.invalidateQueries({ queryKey: ['purchase-orders', businessId] });
     setSaving(false);
@@ -324,6 +330,9 @@ function CreatePOModal({ open, onClose, businessId, existingCount, queryClient }
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-primary" /> Buat Purchase Order Baru
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulir untuk membuat Purchase Order baru
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">

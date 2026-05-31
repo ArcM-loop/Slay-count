@@ -75,9 +75,9 @@ service cloud.firestore {
     // ═══════════════════════════════════════════════════════════════
     match /journal_entries/{docId} {
       allow read:   if isAuthenticated() && resource.data.user_id == request.auth.uid;
-      allow create: if false;  // DIBLOKIR — hanya server (Admin SDK) yang boleh
-      allow update: if false;  // DIBLOKIR — jurnal tidak boleh diubah setelah dibuat
-      allow delete: if false;  // DIBLOKIR — hanya server yang boleh menghapus
+      allow create: if isValidOwner();  // Mengizinkan penulisan dari client (untuk Jurnal Manual, PO, Bank Rec)
+      allow update: if isOwner();       // Mengizinkan pembaruan oleh pemilik terverifikasi
+      allow delete: if isOwner();       // Mengizinkan penghapusan oleh pemilik (misalnya saat membatalkan/mengedit)
     }
 
     // ═══════════════════════════════════════════════════════════════
