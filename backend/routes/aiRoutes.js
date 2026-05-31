@@ -27,7 +27,7 @@ const API_KEYS = [
   process.env.GEMINI_API_KEY_EIGHTH
 ].filter(Boolean);
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Rate Limiter khusus AI — cegah pengguna menghabiskan kuota

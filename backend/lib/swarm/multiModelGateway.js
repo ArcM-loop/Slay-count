@@ -12,7 +12,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { OpenRouter } from "@openrouter/sdk";
 
 // 1. Gemini Configuration
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
 // 2. Llama & GPT (OpenRouter) Configuration
 const openrouter = new OpenRouter({
@@ -47,8 +47,7 @@ export async function callGemini(prompt, options = {}) {
     GEMINI_MODEL,
     'gemini-3-flash',
     'gemini-3-flash-preview',
-    'gemini-2.5-flash',
-    'gemini-1.5-flash'
+    'gemini-2.5-flash'
   ];
 
   let lastError = null;
