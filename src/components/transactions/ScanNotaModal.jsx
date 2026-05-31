@@ -287,7 +287,7 @@ Aturan Pengisian:
           const llmResult = await GoogleGenerativeAI.generate({
             prompt: visionPrompt,
             temperature: 0.4,
-            jsonMode: true,
+            jsonMode: false,
             image: base64Image,
             mimeType: file.type || 'image/jpeg'
           });
