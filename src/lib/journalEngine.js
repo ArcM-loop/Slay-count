@@ -402,6 +402,9 @@ export async function createJournalEntries(tx, accounts, paymentAccountId) {
         account_name: account?.name || ''
       });
       
+      // Auto-trigger PO Matching secara asinkron
+      await applyPOMatching({ ...tx, status: 'Final', account_name: account?.name || '' });
+      
       return true;
     } else {
       throw new Error(result?.error || 'Unknown API commit error');
@@ -441,6 +444,56 @@ export async function deleteJournalEntries(transactionId) {
   } catch (error) {
     console.error('[JournalEngine] Failed to delete journal entries:', error);
     throw new Error(`Gagal menghapus jurnal: ${error.message}`);
+  }
+}
+
+/**
+ * Mencocokkan transaksi pengeluaran dengan Purchase Order aktif
+ * secara otonom, mengurangi sisa saldo PO, dan memperbarui statusnya.
+ * @param {Object} tx - Objek transaksi yang baru difinalisasi
+ */
+export async function applyPOMatching(tx) {
+  if (tx.type !== 'Pengeluaran') return;
+
+  try {
+    const { GoogleGenerativeAI: apiG } = await import('@/API/GoogleGenerativeAI');
+    const { findMatchingPO, calculatePartialPO } = await import('@/lib/poMatchingEngine');
+
+    // 1. Ambil semua PO untuk bisnis ini yang statusnya masih Open atau Partial
+    const purchaseOrders = await apiG.entities.PurchaseOrder.filter({
+      business_id: tx.business_id
+    });
+    
+    const activePOs = purchaseOrders.filter(po => po.status === 'Open' || po.status === 'Partial');
+    if (activePOs.length === 0) return;
+
+    // 2. Cari PO yang cocok berdasarkan nomor PO, faktur, atau nama vendor / deskripsi
+    const poNumber = tx.nomor_faktur || tx.reference || '';
+    const matchingPO = findMatchingPO(poNumber, tx.merchant_name || tx.description, activePOs);
+
+    if (matchingPO) {
+      console.log(`[PO Matching] Found matching PO ${matchingPO.po_number} for transaction "${tx.description}"`);
+
+      // 3. Hitung sisa saldo dan status PO baru (nilai pengeluaran adalah nilai nominal positif)
+      const paidAmount = parseFloat(tx.amount || 0);
+      const { newStatus, remainingBalance } = calculatePartialPO(matchingPO, paidAmount);
+
+      // 4. Update dokumen PO di Firestore
+      await apiG.entities.PurchaseOrder.update(matchingPO.id, {
+        status: newStatus,
+        remaining_balance: remainingBalance
+      });
+
+      // 5. Hubungkan transaksi dengan PO dengan menambahkan kolom po_id & po_number
+      await apiG.entities.Transaction.update(tx.id, {
+        po_id: matchingPO.id,
+        po_number: matchingPO.po_number
+      });
+
+      console.log(`[PO Matching] PO ${matchingPO.po_number} updated to ${newStatus} with remaining balance ${remainingBalance} ✅`);
+    }
+  } catch (err) {
+    console.error('[PO Matching] Error during auto-matching:', err.message);
   }
 }
 
