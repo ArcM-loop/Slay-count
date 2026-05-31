@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, Plus, Trash2, RotateCcw, Lock, ChevronDown, ChevronUp, Bot } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { ClosingAgent } from '@/lib/swarm/agents/ClosingAgent';
@@ -69,7 +69,7 @@ export default function SiklusAkuntansi() {
         const period = `${depYear}-${depMonth}`;
         
         // AI Closing Agent bertugas mencetak penyesuaian akhir bulan
-        await ClosingAgent.runMonthEndAdjustments(activeBusiness.id, `${period}-28`);
+        const resAdjust = await ClosingAgent.runMonthEndAdjustments(activeBusiness.id, `${period}-28`);
         
         // AI Closing Agent bertugas mencetak pembalik di tanggal 1 bulan depannya
         let nextM = parseInt(depMonth) + 1;
@@ -82,7 +82,11 @@ export default function SiklusAkuntansi() {
 
         queryClient.invalidateQueries({ queryKey: ['fixed-assets', activeBusiness.id] });
         queryClient.invalidateQueries({ queryKey: ['journal-entries', activeBusiness.id] });
-        setDepResult({ count: 'All', totalDep: 'By AI', period });
+        setDepResult({ 
+            count: resAdjust.processedCount ?? 0, 
+            totalDep: resAdjust.totalDepAmount ?? 0, 
+            period 
+        });
         setDepRunning(false);
         visualizerStore.endAction('Penyesuaian aset dan pembalik selesai dicatat.');
     };
@@ -485,6 +489,9 @@ function AddAssetModal({ open, onClose, accounts, businessId, onSaved }) {
             <DialogContent className="bg-card border-border max-w-md">
                 <DialogHeader>
                     <DialogTitle>Tambah Aset Tetap 🏭</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Formulir untuk menambah aset tetap baru
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3 mt-2">
                     {[
