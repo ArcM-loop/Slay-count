@@ -72,6 +72,77 @@ function getNextKey() {
   return key;
 }
 
+// Algoritma Cerdas Herta untuk Memperbaiki JSON Terpotong (Truncated JSON Auto-Repair)
+// Menangani secara elegan jika respons Gemini Vision terpotong di tengah jalan.
+function repairTruncatedJson(str) {
+  try {
+    str = str.trim();
+    if (str.startsWith('{') && str.endsWith('}')) {
+      return JSON.parse(str);
+    }
+    
+    if (str.includes('```')) {
+      str = str.replace(/```json/g, '').replace(/```/g, '').trim();
+    }
+
+    let inString = false;
+    let escaped = false;
+    let cleaned = "";
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      if (char === '"' && !escaped) {
+        inString = !inString;
+      }
+      if (char === '\\' && !escaped) {
+        escaped = true;
+      } else {
+        escaped = false;
+      }
+      cleaned += char;
+    }
+
+    if (inString) {
+      cleaned += '"';
+    }
+
+    let success = false;
+    let resultObj = {};
+    
+    for (let braces = 1; braces <= 3; braces++) {
+      try {
+        const candidate = cleaned + "}".repeat(braces);
+        resultObj = JSON.parse(candidate);
+        success = true;
+        break;
+      } catch (e) {}
+    }
+
+    if (success) return resultObj;
+
+    let temp = cleaned;
+    while (temp.length > 0 && !success) {
+      temp = temp.slice(0, -1).trim();
+      if (temp.endsWith(',')) {
+        temp = temp.slice(0, -1).trim();
+      }
+      for (let braces = 1; braces <= 2; braces++) {
+        try {
+          const candidate = temp + "}".repeat(braces);
+          resultObj = JSON.parse(candidate);
+          success = true;
+          break;
+        } catch (e) {}
+      }
+    }
+
+    if (success) return resultObj;
+  } catch (err) {
+    console.warn('[JSON Repair] Gagal memperbaiki:', err.message);
+  }
+  return null;
+}
+
 /**
  * POST /api/ai/generate
  * Endpoint proxy yang aman untuk memanggil Gemini
@@ -193,6 +264,12 @@ router.post('/generate', requireAuthOrFirebaseToken, aiLimiter, async (req, res)
           }
           return res.json({ result: JSON.parse(cleanText) });
         } catch {
+          // Percobaan perbaikan otomatis Herta untuk JSON terpotong
+          const repaired = repairTruncatedJson(text);
+          if (repaired) {
+            console.log(`[Proxy AI] Berhasil memperbaiki JSON terpotong secara otomatis!`);
+            return res.json({ result: repaired });
+          }
           // Coba cari pola {...} menggunakan regex sebagai upaya terakhir
           try {
             const match = text.match(/\{.*\}/s)?.[0];

@@ -51,6 +51,74 @@ Jawab dalam format JSON ini:
 }
 `;
 
+function repairTruncatedJson(str) {
+  try {
+    str = str.trim();
+    if (str.startsWith('{') && str.endsWith('}')) {
+      return JSON.parse(str);
+    }
+    if (str.includes('```')) {
+      str = str.replace(/```json/g, '').replace(/```/g, '').trim();
+    }
+
+    let inString = false;
+    let escaped = false;
+    let cleaned = "";
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      if (char === '"' && !escaped) {
+        inString = !inString;
+      }
+      if (char === '\\' && !escaped) {
+        escaped = true;
+      } else {
+        escaped = false;
+      }
+      cleaned += char;
+    }
+
+    if (inString) {
+      cleaned += '"';
+    }
+
+    let success = false;
+    let resultObj = {};
+    
+    for (let braces = 1; braces <= 3; braces++) {
+      try {
+        const candidate = cleaned + "}".repeat(braces);
+        resultObj = JSON.parse(candidate);
+        success = true;
+        break;
+      } catch (e) {}
+    }
+
+    if (success) return resultObj;
+
+    let temp = cleaned;
+    while (temp.length > 0 && !success) {
+      temp = temp.slice(0, -1).trim();
+      if (temp.endsWith(',')) {
+        temp = temp.slice(0, -1).trim();
+      }
+      for (let braces = 1; braces <= 2; braces++) {
+        try {
+          const candidate = temp + "}".repeat(braces);
+          resultObj = JSON.parse(candidate);
+          success = true;
+          break;
+        } catch (e) {}
+      }
+    }
+
+    if (success) return resultObj;
+  } catch (err) {
+    console.warn('[JSON Repair] Gagal memperbaiki:', err.message);
+  }
+  return null;
+}
+
 export default function ScanNotaModal({ open, onClose }) {
   const { activeBusiness } = useBusiness();
   const queryClient = useQueryClient();
@@ -239,7 +307,18 @@ Petunjuk pengisian field:
             rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
           }
 
-          const parsed = JSON.parse(rawContent);
+          let parsed;
+          try {
+            parsed = JSON.parse(rawContent);
+          } catch (jsonErr) {
+            console.warn('[ScanNota] Gagal parsing JSON standar. Mencoba perbaikan otomatis...', jsonErr);
+            const repaired = repairTruncatedJson(rawContent);
+            if (repaired) {
+              parsed = repaired;
+            } else {
+              throw new Error('Format data dari AI tidak valid.');
+            }
+          }
 
           if (parsed.error) {
             setError(parsed.error);
